@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Illuminate\Support\Facades\Route;
+use PayIn\Infrastructure\Http\Api\V1\Controllers\AccountController;
 use PayIn\Infrastructure\Http\Api\V1\Controllers\ClientController;
 use PayIn\Infrastructure\Http\Api\V1\Controllers\PayInController;
 
@@ -12,6 +13,17 @@ Route::prefix('v1')
         Route::post('/clients', [ClientController::class, 'store'])
             ->name('clients.store')
             ->middleware('throttle:30,1');
+
+        Route::post('/accounts', [AccountController::class, 'store'])
+            ->name('accounts.store')
+            ->middleware('throttle:30,1');
+
+        Route::get('/accounts/{id}', [AccountController::class, 'show'])
+            ->name('accounts.show')
+            ->whereUuid('id');
+
+        Route::get('/accounts', [AccountController::class, 'index'])
+            ->name('accounts.index');
 
         Route::post('/payins', [PayInController::class, 'store'])
             ->name('payins.store')

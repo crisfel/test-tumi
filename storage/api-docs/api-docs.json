@@ -12,6 +12,204 @@
         }
     ],
     "paths": {
+        "/v1/accounts": {
+            "get": {
+                "tags": [
+                    "Accounts"
+                ],
+                "summary": "Listar cuentas de un cliente",
+                "description": "Lista las cuentas de un cliente con paginación.",
+                "operationId": "4fee59c9debe86b82f86498a0b0b721e",
+                "parameters": [
+                    {
+                        "name": "client_id",
+                        "in": "query",
+                        "description": "UUID del cliente",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid",
+                            "example": "019fd715-ebf8-7223-ada8-b3c168a28e22"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 20,
+                            "maximum": 100
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 0
+                        }
+                    },
+                    {
+                        "name": "X-Correlation-Id",
+                        "in": "header",
+                        "description": "Identificador de correlación para trazabilidad",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Página de cuentas del cliente",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AccountPage"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Cliente inexistente",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "Accounts"
+                ],
+                "summary": "Abrir una cuenta",
+                "description": "Abre una cuenta para un cliente en una moneda (saldo inicial cero).\n\nLa plataforma permite una única cuenta por cliente y moneda\n(409 si ya existe).",
+                "operationId": "5d342aef990614a23ee928015622867d",
+                "parameters": [
+                    {
+                        "name": "X-Correlation-Id",
+                        "in": "header",
+                        "description": "Identificador de correlación para trazabilidad",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/StoreAccountRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Cuenta abierta",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AccountResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Datos de entrada inválidos",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Cliente inexistente",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "El cliente ya posee una cuenta en esa moneda",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/accounts/{id}": {
+            "get": {
+                "tags": [
+                    "Accounts"
+                ],
+                "summary": "Consultar una cuenta",
+                "description": "Consulta una cuenta por su identificador.",
+                "operationId": "436f83fbf649246c881e8abaaa35ecf5",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "UUID de la cuenta",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid",
+                            "example": "019fd715-ec1a-7a7e-ab6f-f497aa52abe4"
+                        }
+                    },
+                    {
+                        "name": "X-Correlation-Id",
+                        "in": "header",
+                        "description": "Identificador de correlación para trazabilidad",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Cuenta encontrada",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AccountResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Cuenta inexistente",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/v1/clients": {
             "post": {
                 "tags": [
@@ -322,6 +520,92 @@
     },
     "components": {
         "schemas": {
+            "AccountPage": {
+                "required": [
+                    "data",
+                    "meta"
+                ],
+                "properties": {
+                    "data": {
+                        "description": "Schema OpenAPI de la página de listado de cuentas.",
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/Account"
+                        }
+                    },
+                    "meta": {
+                        "required": [
+                            "total",
+                            "limit",
+                            "offset"
+                        ],
+                        "properties": {
+                            "total": {
+                                "type": "integer",
+                                "example": 2
+                            },
+                            "limit": {
+                                "type": "integer",
+                                "example": 20
+                            },
+                            "offset": {
+                                "type": "integer",
+                                "example": 0
+                            }
+                        },
+                        "type": "object"
+                    }
+                },
+                "type": "object"
+            },
+            "AccountResponse": {
+                "required": [
+                    "data"
+                ],
+                "properties": {
+                    "data": {
+                        "$ref": "#/components/schemas/Account"
+                    }
+                },
+                "type": "object"
+            },
+            "Account": {
+                "required": [
+                    "id",
+                    "client_id",
+                    "currency",
+                    "balance"
+                ],
+                "properties": {
+                    "id": {
+                        "description": "Schema OpenAPI de la representación de una cuenta.",
+                        "type": "string",
+                        "format": "uuid",
+                        "example": "019fd715-ec1a-7a7e-ab6f-f497aa52abe4"
+                    },
+                    "client_id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "example": "019fd715-ebf8-7223-ada8-b3c168a28e22"
+                    },
+                    "currency": {
+                        "type": "string",
+                        "enum": [
+                            "COP",
+                            "USD",
+                            "EUR",
+                            "MXN"
+                        ],
+                        "example": "COP"
+                    },
+                    "balance": {
+                        "description": "Saldo en unidades menores (enteras)",
+                        "type": "integer",
+                        "example": 0
+                    }
+                },
+                "type": "object"
+            },
             "ClientResponse": {
                 "required": [
                     "data"
@@ -554,6 +838,32 @@
                 },
                 "type": "object"
             },
+            "StoreAccountRequest": {
+                "required": [
+                    "client_id",
+                    "currency"
+                ],
+                "properties": {
+                    "client_id": {
+                        "description": "UUID del cliente titular de la cuenta",
+                        "type": "string",
+                        "format": "uuid",
+                        "example": "019fd715-ebf8-7223-ada8-b3c168a28e22"
+                    },
+                    "currency": {
+                        "description": "Moneda de la cuenta (una por cliente y moneda)",
+                        "type": "string",
+                        "enum": [
+                            "COP",
+                            "USD",
+                            "EUR",
+                            "MXN"
+                        ],
+                        "example": "COP"
+                    }
+                },
+                "type": "object"
+            },
             "StoreClientRequest": {
                 "required": [
                     "name",
@@ -637,6 +947,10 @@
         {
             "name": "Clients",
             "description": "Operaciones de clientes"
+        },
+        {
+            "name": "Accounts",
+            "description": "Operaciones de cuentas"
         },
         {
             "name": "System",

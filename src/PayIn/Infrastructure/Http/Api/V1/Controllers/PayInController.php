@@ -26,6 +26,7 @@ use PayIn\Infrastructure\Http\Resources\PayInResource;
 #[OA\Server(url: 'http://localhost:8080/api', description: 'Servidor de desarrollo')]
 #[OA\Tag(name: 'PayIns', description: 'Operaciones PayIn')]
 #[OA\Tag(name: 'Clients', description: 'Operaciones de clientes')]
+#[OA\Tag(name: 'Accounts', description: 'Operaciones de cuentas')]
 #[OA\Tag(name: 'System', description: 'Operaciones de sistema')]
 final readonly class PayInController
 {

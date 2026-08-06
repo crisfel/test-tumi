@@ -30,9 +30,13 @@ final class PayInFixtures
 {
     public const NOW = '2026-01-01 10:00:00 UTC';
 
-    public static function client(?ClientId $id = null): Client
+    public static function client(?ClientId $id = null, ?string $email = null): Client
     {
-        return Client::register($id ?? ClientId::generate(), 'Ana García', Email::fromString('ana@example.com'));
+        return Client::register(
+            $id ?? ClientId::generate(),
+            'Ana García',
+            Email::fromString($email ?? 'ana@example.com'),
+        );
     }
 
     public static function account(ClientId $clientId, Currency $currency = Currency::COP, ?AccountId $id = null): Account
