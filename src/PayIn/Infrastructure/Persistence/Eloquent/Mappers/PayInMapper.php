@@ -52,6 +52,7 @@ final class PayInMapper
 
         $payInRow = new PayInModel();
         $payInRow->transaction_id = $payIn->id()->toString();
+        $payInRow->origin_account_id = $payIn->originAccountId()->toString();
         $payInRow->account_id = $payIn->accountId()->toString();
         $payInRow->payment_method_id = $payIn->paymentMethodId()->toString();
         $payInRow->fees = $payIn->fees()->minorUnits();
@@ -63,9 +64,14 @@ final class PayInMapper
     {
         $currency = Currency::fromCode($transaction->currency);
 
+        if ($payIn->origin_account_id === null) {
+            throw new \LogicException('pay_ins.origin_account_id no puede ser nulo.');
+        }
+
         return PayIn::reconstitute(
             id: TransactionId::fromString($transaction->id),
             clientId: ClientId::fromString($transaction->client_id),
+            originAccountId: AccountId::fromString($payIn->origin_account_id),
             accountId: AccountId::fromString($payIn->account_id),
             paymentMethodId: PaymentMethodId::fromString($payIn->payment_method_id),
             amount: Money::fromMinorUnits((int) $transaction->amount, $currency),

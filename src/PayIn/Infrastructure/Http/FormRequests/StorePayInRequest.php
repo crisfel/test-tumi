@@ -34,6 +34,7 @@ final class StorePayInRequest extends FormRequest
     {
         return [
             'client_id' => ['required', 'string', 'uuid'],
+            'origin_account_id' => ['required', 'string', 'uuid'],
             'account_id' => ['required', 'string', 'uuid'],
             'payment_method_id' => ['required', 'string', 'uuid'],
             'amount' => ['required', 'integer', 'min:1', 'max:1000000000000'],
@@ -49,6 +50,7 @@ final class StorePayInRequest extends FormRequest
     {
         return [
             'client_id.uuid' => 'El campo client_id debe ser un UUID válido.',
+            'origin_account_id.uuid' => 'El campo origin_account_id debe ser un UUID válido.',
             'account_id.uuid' => 'El campo account_id debe ser un UUID válido.',
             'payment_method_id.uuid' => 'El campo payment_method_id debe ser un UUID válido.',
             'amount.min' => 'El monto debe ser mayor a cero (unidades menores).',
@@ -62,6 +64,7 @@ final class StorePayInRequest extends FormRequest
     {
         return new ProcessPayInCommand(
             clientId: ClientId::fromString($this->string('client_id')->toString()),
+            originAccountId: AccountId::fromString($this->string('origin_account_id')->toString()),
             accountId: AccountId::fromString($this->string('account_id')->toString()),
             paymentMethodId: PaymentMethodId::fromString($this->string('payment_method_id')->toString()),
             amount: Money::fromMinorUnits(

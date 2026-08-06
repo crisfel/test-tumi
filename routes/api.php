@@ -20,6 +20,15 @@ Route::prefix('v1')
             ->name('accounts.store')
             ->middleware('throttle:30,1');
 
+        Route::patch('/accounts/{id}/balance', [AccountController::class, 'adjustBalance'])
+            ->name('accounts.adjust-balance')
+            ->whereUuid('id')
+            ->middleware('throttle:30,1');
+
+        Route::get('/accounts/{id}/movements', [AccountController::class, 'movements'])
+            ->name('accounts.movements')
+            ->whereUuid('id');
+
         Route::get('/accounts/{id}', [AccountController::class, 'show'])
             ->name('accounts.show')
             ->whereUuid('id');

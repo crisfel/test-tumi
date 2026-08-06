@@ -24,6 +24,7 @@ final class PayInModel extends Model
 
     protected $fillable = [
         'transaction_id',
+        'origin_account_id',
         'account_id',
         'payment_method_id',
         'fees',

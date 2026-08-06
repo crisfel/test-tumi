@@ -11,6 +11,7 @@ use PayIn\Domain\Client\ClientId;
 use PayIn\Domain\Currency;
 use PayIn\Domain\Email;
 use PayIn\Domain\Exceptions\CurrencyMismatchException;
+use PayIn\Domain\Exceptions\InsufficientFundsException;
 use PayIn\Domain\Money;
 use PHPUnit\Framework\TestCase;
 
@@ -21,6 +22,30 @@ final class AccountTest extends TestCase
         $account = Account::open(AccountId::generate(), ClientId::generate(), Currency::USD);
 
         $this->assertTrue($account->balance()->isZero());
+    }
+
+    public function test_opening_account_with_initial_balance(): void
+    {
+        $account = Account::open(
+            AccountId::generate(),
+            ClientId::generate(),
+            Currency::COP,
+            Money::fromMinorUnits(10000, Currency::COP),
+        );
+
+        $this->assertSame(10000, $account->balance()->minorUnits());
+    }
+
+    public function test_rejects_initial_balance_in_other_currency(): void
+    {
+        $this->expectException(CurrencyMismatchException::class);
+
+        Account::open(
+            AccountId::generate(),
+            ClientId::generate(),
+            Currency::COP,
+            Money::fromMinorUnits(10000, Currency::USD),
+        );
     }
 
     public function test_credit_increases_balance(): void
@@ -39,6 +64,62 @@ final class AccountTest extends TestCase
         $this->expectException(CurrencyMismatchException::class);
 
         $account->credit(Money::fromMinorUnits(15000, Currency::USD));
+    }
+
+    public function test_debit_decreases_balance(): void
+    {
+        $account = Account::open(
+            AccountId::generate(),
+            ClientId::generate(),
+            Currency::COP,
+            Money::fromMinorUnits(10000, Currency::COP),
+        );
+
+        $account->debit(Money::fromMinorUnits(2000, Currency::COP));
+
+        $this->assertSame(8000, $account->balance()->minorUnits());
+    }
+
+    public function test_debit_rejects_different_currency(): void
+    {
+        $account = Account::open(
+            AccountId::generate(),
+            ClientId::generate(),
+            Currency::COP,
+            Money::fromMinorUnits(10000, Currency::COP),
+        );
+
+        $this->expectException(CurrencyMismatchException::class);
+
+        $account->debit(Money::fromMinorUnits(2000, Currency::USD));
+    }
+
+    public function test_debit_rejects_insufficient_funds(): void
+    {
+        $account = Account::open(
+            AccountId::generate(),
+            ClientId::generate(),
+            Currency::COP,
+            Money::fromMinorUnits(10000, Currency::COP),
+        );
+
+        $this->expectException(InsufficientFundsException::class);
+
+        $account->debit(Money::fromMinorUnits(20000, Currency::COP));
+    }
+
+    public function test_has_sufficient_funds(): void
+    {
+        $account = Account::open(
+            AccountId::generate(),
+            ClientId::generate(),
+            Currency::COP,
+            Money::fromMinorUnits(10000, Currency::COP),
+        );
+
+        $this->assertTrue($account->hasSufficientFunds(Money::fromMinorUnits(10000, Currency::COP)));
+        $this->assertFalse($account->hasSufficientFunds(Money::fromMinorUnits(10001, Currency::COP)));
+        $this->assertFalse($account->hasSufficientFunds(Money::fromMinorUnits(100, Currency::USD)));
     }
 
     public function test_account_belongs_to_client(): void

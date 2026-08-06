@@ -25,6 +25,7 @@ use PayIn\Domain\Account\Account;
 use PayIn\Domain\Account\AccountId;
 use PayIn\Domain\Client\Client;
 use PayIn\Domain\Client\ClientId;
+use PayIn\Domain\Contracts\AccountMovementRepository;
 use PayIn\Domain\Contracts\AccountRepository;
 use PayIn\Domain\Contracts\ClientRepository;
 use PayIn\Domain\Contracts\PayInRepository;
@@ -32,6 +33,8 @@ use PayIn\Domain\Contracts\PaymentMethodRepository;
 use PayIn\Domain\Contracts\PaymentProviderRepository;
 use PayIn\Domain\Currency;
 use PayIn\Domain\Email;
+use PayIn\Domain\Exceptions\AccountNotBelongingToClientException;
+use PayIn\Domain\Exceptions\InsufficientFundsException;
 use PayIn\Domain\Exceptions\PaymentMethodInactiveException;
 use PayIn\Domain\Money;
 use PayIn\Domain\PayIn\PayInStatus;
@@ -53,7 +56,9 @@ final class ProcessPayInServiceTest extends TestCase
 
     private Client $client;
 
-    private Account $account;
+    private Account $originAccount;
+
+    private Account $destinationAccount;
 
     private PaymentMethod $method;
 
@@ -69,6 +74,8 @@ final class ProcessPayInServiceTest extends TestCase
 
     private PayInRepository&MockInterface $payIns;
 
+    private AccountMovementRepository&MockInterface $movements;
+
     private PaymentGatewayRegistry&MockInterface $gateways;
 
     private PaymentGateway&MockInterface $gateway;
@@ -77,7 +84,13 @@ final class ProcessPayInServiceTest extends TestCase
     {
         $clientId = ClientId::generate();
         $this->client = Client::register($clientId, 'Ana García', Email::fromString('ana@example.com'));
-        $this->account = Account::open(AccountId::generate(), $clientId, Currency::COP);
+        $this->originAccount = Account::open(
+            AccountId::generate(),
+            $clientId,
+            Currency::COP,
+            Money::fromMinorUnits(10000, Currency::COP),
+        );
+        $this->destinationAccount = Account::open(AccountId::generate(), $clientId, Currency::COP);
         $this->provider = PaymentProvider::register(
             ProviderId::generate(),
             ProviderCode::fromString('fakepay'),
@@ -92,6 +105,7 @@ final class ProcessPayInServiceTest extends TestCase
         $this->paymentMethods = \Mockery::mock(PaymentMethodRepository::class);
         $this->providers = \Mockery::mock(PaymentProviderRepository::class);
         $this->payIns = \Mockery::mock(PayInRepository::class);
+        $this->movements = \Mockery::mock(AccountMovementRepository::class);
         $this->gateways = \Mockery::mock(PaymentGatewayRegistry::class);
         $this->gateway = \Mockery::mock(PaymentGateway::class);
     }
@@ -113,6 +127,7 @@ final class ProcessPayInServiceTest extends TestCase
             paymentMethods: $this->paymentMethods,
             providers: $this->providers,
             payIns: $this->payIns,
+            movements: $this->movements,
             validator: new PayInValidator(),
             gateways: $this->gateways,
             transactions: $transactions,
@@ -122,21 +137,27 @@ final class ProcessPayInServiceTest extends TestCase
         );
     }
 
-    private function command(?Reference $reference = null): ProcessPayInCommand
+    private function command(?Reference $reference = null, ?Account $origin = null): ProcessPayInCommand
     {
+        $origin ??= $this->originAccount;
+
         return new ProcessPayInCommand(
             clientId: $this->client->id(),
-            accountId: $this->account->id(),
+            originAccountId: $origin->id(),
+            accountId: $this->destinationAccount->id(),
             paymentMethodId: $this->method->id(),
-            amount: Money::fromMinorUnits(25000, Currency::COP),
+            amount: Money::fromMinorUnits(2000, Currency::COP),
             reference: $reference,
         );
     }
 
-    private function expectLoads(): void
+    private function expectLoads(?Account $origin = null): void
     {
+        $origin ??= $this->originAccount;
+
         $this->clients->shouldReceive('findById')->andReturn($this->client);
-        $this->accounts->shouldReceive('findById')->andReturn($this->account);
+        $this->accounts->shouldReceive('findById')->with($origin->id())->andReturn($origin);
+        $this->accounts->shouldReceive('findById')->with($this->destinationAccount->id())->andReturn($this->destinationAccount);
         $this->paymentMethods->shouldReceive('findById')->andReturn($this->method);
         $this->providers->shouldReceive('findById')->andReturn($this->provider);
     }
@@ -147,20 +168,27 @@ final class ProcessPayInServiceTest extends TestCase
         $this->gateway->shouldReceive('charge')->andReturn($result);
     }
 
-    public function test_processes_payin_successfully(): void
+    public function test_processes_payin_successfully_debiting_origin_and_crediting_destination(): void
     {
         $this->expectLoads();
         $this->expectGatewayResolved(ChargeResult::success('FP-20260101-0001', 'approved', ['auth' => 'ABC']));
         $this->payIns->shouldReceive('save');
-        $savedAccount = null;
-        $this->accounts->shouldReceive('save')->with(\Mockery::capture($savedAccount));
+        $savedAccounts = [];
+        $this->accounts->shouldReceive('save')->with(\Mockery::capture($savedAccounts));
+        $this->movements->shouldReceive('save')->twice();
 
         $response = $this->service()->process($this->command());
 
         $this->assertSame(PayInStatus::PROCESSED, $response->status);
         $this->assertSame('FP-20260101-0001', $response->providerTransactionId);
         $this->assertNull($response->errorCode);
-        $this->assertSame(25000, $savedAccount->balance()->minorUnits(), 'La cuenta debe abonarse al procesarse.');
+
+        $balances = [];
+        foreach ($savedAccounts as $saved) {
+            $balances[$saved->id()->toString()] = $saved->balance()->minorUnits();
+        }
+        $this->assertSame(8000, $balances[$this->originAccount->id()->toString()], 'El origen debe debitarse.');
+        $this->assertSame(2000, $balances[$this->destinationAccount->id()->toString()], 'El destino debe abonarse.');
     }
 
     public function test_marks_failed_when_provider_rejects(): void
@@ -174,6 +202,7 @@ final class ProcessPayInServiceTest extends TestCase
         $this->assertSame(PayInStatus::FAILED, $response->status);
         $this->assertSame('PROVIDER_REJECTED', $response->errorCode);
         $this->accounts->shouldNotReceive('save');
+        $this->movements->shouldNotReceive('save');
     }
 
     public function test_marks_failed_when_provider_times_out(): void
@@ -224,7 +253,7 @@ final class ProcessPayInServiceTest extends TestCase
         $this->service()->process($this->command());
     }
 
-    public function test_throws_when_account_does_not_exist(): void
+    public function test_throws_when_origin_account_does_not_exist(): void
     {
         $this->clients->shouldReceive('findById')->andReturn($this->client);
         $this->accounts->shouldReceive('findById')->andReturnNull();
@@ -237,7 +266,8 @@ final class ProcessPayInServiceTest extends TestCase
     public function test_throws_when_payment_method_does_not_exist(): void
     {
         $this->clients->shouldReceive('findById')->andReturn($this->client);
-        $this->accounts->shouldReceive('findById')->andReturn($this->account);
+        $this->accounts->shouldReceive('findById')->with($this->originAccount->id())->andReturn($this->originAccount);
+        $this->accounts->shouldReceive('findById')->with($this->destinationAccount->id())->andReturn($this->destinationAccount);
         $this->paymentMethods->shouldReceive('findById')->andReturnNull();
 
         $this->expectException(PaymentMethodNotFoundException::class);
@@ -248,7 +278,8 @@ final class ProcessPayInServiceTest extends TestCase
     public function test_throws_when_provider_does_not_exist(): void
     {
         $this->clients->shouldReceive('findById')->andReturn($this->client);
-        $this->accounts->shouldReceive('findById')->andReturn($this->account);
+        $this->accounts->shouldReceive('findById')->with($this->originAccount->id())->andReturn($this->originAccount);
+        $this->accounts->shouldReceive('findById')->with($this->destinationAccount->id())->andReturn($this->destinationAccount);
         $this->paymentMethods->shouldReceive('findById')->andReturn($this->method);
         $this->providers->shouldReceive('findById')->andReturnNull();
 
@@ -266,6 +297,42 @@ final class ProcessPayInServiceTest extends TestCase
         $this->service()->process($this->command(Reference::fromString('order-0001')));
     }
 
+    public function test_throws_when_origin_account_belongs_to_another_client(): void
+    {
+        $foreignOrigin = Account::open(
+            AccountId::generate(),
+            ClientId::generate(),
+            Currency::COP,
+            Money::fromMinorUnits(50000, Currency::COP),
+        );
+        $this->expectLoads($foreignOrigin);
+        $this->payIns->shouldReceive('save')->never();
+        $this->payIns->shouldReceive('existsByReference')->andReturn(false);
+
+        $this->expectException(AccountNotBelongingToClientException::class);
+
+        $this->service()->process($this->command(origin: $foreignOrigin));
+    }
+
+    public function test_throws_when_origin_has_insufficient_funds(): void
+    {
+        $poorOrigin = Account::open(
+            AccountId::generate(),
+            $this->client->id(),
+            Currency::COP,
+            Money::fromMinorUnits(1000, Currency::COP),
+        );
+        $this->expectLoads($poorOrigin);
+        $this->payIns->shouldReceive('save')->never();
+        $this->payIns->shouldReceive('existsByReference')->andReturn(false);
+        $this->accounts->shouldReceive('save')->never();
+        $this->movements->shouldReceive('save')->never();
+
+        $this->expectException(InsufficientFundsException::class);
+
+        $this->service()->process($this->command(origin: $poorOrigin));
+    }
+
     public function test_nothing_is_saved_when_domain_validation_fails(): void
     {
         $inactive = PaymentMethod::reconstitute(
@@ -278,7 +345,8 @@ final class ProcessPayInServiceTest extends TestCase
             new \DateTimeImmutable(self::NOW),
         );
         $this->clients->shouldReceive('findById')->andReturn($this->client);
-        $this->accounts->shouldReceive('findById')->andReturn($this->account);
+        $this->accounts->shouldReceive('findById')->with($this->originAccount->id())->andReturn($this->originAccount);
+        $this->accounts->shouldReceive('findById')->with($this->destinationAccount->id())->andReturn($this->destinationAccount);
         $this->paymentMethods->shouldReceive('findById')->andReturn($inactive);
         $this->providers->shouldReceive('findById')->andReturn($this->provider);
         $this->payIns->shouldReceive('save')->never();

@@ -39,9 +39,18 @@ final class PayInFixtures
         );
     }
 
-    public static function account(ClientId $clientId, Currency $currency = Currency::COP, ?AccountId $id = null): Account
-    {
-        return Account::open($id ?? AccountId::generate(), $clientId, $currency);
+    public static function account(
+        ClientId $clientId,
+        Currency $currency = Currency::COP,
+        ?AccountId $id = null,
+        ?int $initialBalance = null,
+    ): Account {
+        return Account::open(
+            $id ?? AccountId::generate(),
+            $clientId,
+            $currency,
+            $initialBalance !== null ? Money::fromMinorUnits($initialBalance, $currency) : null,
+        );
     }
 
     public static function provider(
@@ -78,6 +87,7 @@ final class PayInFixtures
 
     public static function payIn(
         ClientId $clientId,
+        AccountId $originAccountId,
         AccountId $accountId,
         PaymentMethodId $paymentMethodId,
         Money $amount,
@@ -87,6 +97,7 @@ final class PayInFixtures
         return PayIn::create(
             id: $id ?? TransactionId::generate(),
             clientId: $clientId,
+            originAccountId: $originAccountId,
             accountId: $accountId,
             paymentMethodId: $paymentMethodId,
             amount: $amount,
@@ -98,13 +109,14 @@ final class PayInFixtures
 
     public static function processedPayIn(
         ClientId $clientId,
+        AccountId $originAccountId,
         AccountId $accountId,
         PaymentMethodId $paymentMethodId,
         Money $amount,
         ProviderId $providerId,
         ?TransactionId $id = null,
     ): PayIn {
-        $payIn = self::payIn($clientId, $accountId, $paymentMethodId, $amount, null, $id);
+        $payIn = self::payIn($clientId, $originAccountId, $accountId, $paymentMethodId, $amount, null, $id);
         $payIn->markValidated();
         $payIn->markProcessing();
         $payIn->markProcessed(
@@ -119,12 +131,13 @@ final class PayInFixtures
 
     public static function failedPayIn(
         ClientId $clientId,
+        AccountId $originAccountId,
         AccountId $accountId,
         PaymentMethodId $paymentMethodId,
         Money $amount,
         ?TransactionId $id = null,
     ): PayIn {
-        $payIn = self::payIn($clientId, $accountId, $paymentMethodId, $amount, null, $id);
+        $payIn = self::payIn($clientId, $originAccountId, $accountId, $paymentMethodId, $amount, null, $id);
         $payIn->markFailed('PROVIDER_REJECTED', 'Transacción rechazada.');
 
         return $payIn;

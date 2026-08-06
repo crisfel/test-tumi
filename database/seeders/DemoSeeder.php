@@ -31,12 +31,25 @@ final class DemoSeeder extends Seeder
 
         $copAccount = AccountModel::query()->firstOrCreate(
             ['client_id' => $client->id, 'currency' => Currency::COP->value],
-            ['id' => \PayIn\Domain\Account\AccountId::generate()->toString(), 'balance' => 0],
+            [
+                'id' => \PayIn\Domain\Account\AccountId::generate()->toString(),
+                'balance' => 100000,
+            ],
         );
 
         $usdAccount = AccountModel::query()->firstOrCreate(
             ['client_id' => $client->id, 'currency' => Currency::USD->value],
             ['id' => \PayIn\Domain\Account\AccountId::generate()->toString(), 'balance' => 0],
+        );
+
+        \PayIn\Infrastructure\Persistence\Eloquent\Models\AccountMovementModel::query()->firstOrCreate(
+            ['account_id' => $copAccount->id, 'type' => 'credit', 'amount' => 100000, 'pay_in_id' => null],
+            [
+                'id' => \PayIn\Domain\Account\AccountMovementId::generate()->toString(),
+                'currency' => 'COP',
+                'balance_after' => 100000,
+                'occurred_at' => now(),
+            ],
         );
 
         $fakepay = PaymentProviderModel::query()->where('code', 'fakepay')->firstOrFail();

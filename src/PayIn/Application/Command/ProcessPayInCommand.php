@@ -13,13 +13,14 @@ use PayIn\Domain\PaymentMethod\PaymentMethodId;
 /**
  * Comando inmutable que representa la intención de procesar un PayIn.
  *
- * Es construido por la capa HTTP a partir de datos ya validados; el dominio
- * nunca recibe datos en bruto del cliente.
+ * El PayIn mueve fondos: originAccountId (cuenta del pagador, se debita) →
+ * accountId (cuenta destino, se abona).
  */
 final readonly class ProcessPayInCommand
 {
     public function __construct(
         public ClientId $clientId,
+        public AccountId $originAccountId,
         public AccountId $accountId,
         public PaymentMethodId $paymentMethodId,
         public Money $amount,

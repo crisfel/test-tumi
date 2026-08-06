@@ -33,6 +33,7 @@ final class PayInTest extends TestCase
         return PayIn::create(
             id: TransactionId::generate(),
             clientId: ClientId::generate(),
+            originAccountId: AccountId::generate(),
             accountId: AccountId::generate(),
             paymentMethodId: PaymentMethodId::generate(),
             amount: Money::fromMinorUnits(25000, Currency::COP),
@@ -165,6 +166,7 @@ final class PayInTest extends TestCase
         $payIn = PayIn::reconstitute(
             id: $id,
             clientId: ClientId::generate(),
+            originAccountId: AccountId::generate(),
             accountId: AccountId::generate(),
             paymentMethodId: PaymentMethodId::generate(),
             amount: Money::fromMinorUnits(1000, Currency::USD),
@@ -193,5 +195,6 @@ final class PayInTest extends TestCase
         $this->assertSame(25000, $payIn->amount()->minorUnits());
         $this->assertSame(Currency::COP, $payIn->amount()->currency());
         $this->assertTrue($payIn->fees()->isZero());
+        $this->assertNotNull($payIn->originAccountId()->toString());
     }
 }

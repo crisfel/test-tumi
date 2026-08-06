@@ -63,6 +63,20 @@ final readonly class Money extends ValueObject
         return new self($this->minorUnits + $other->minorUnits, $this->currency);
     }
 
+    public function subtract(self $other): self
+    {
+        $this->assertSameCurrency($other);
+
+        return new self($this->minorUnits - $other->minorUnits, $this->currency);
+    }
+
+    public function isGreaterThanOrEqual(self $other): bool
+    {
+        $this->assertSameCurrency($other);
+
+        return $this->minorUnits >= $other->minorUnits;
+    }
+
     public function equals(ValueObject $other): bool
     {
         return $other instanceof self

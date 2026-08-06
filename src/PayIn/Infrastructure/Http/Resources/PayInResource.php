@@ -27,6 +27,7 @@ final class PayInResource extends JsonResource
         return [
             'id' => $payIn->id()->toString(),
             'client_id' => $payIn->clientId()->toString(),
+            'origin_account_id' => $payIn->originAccountId()->toString(),
             'account_id' => $payIn->accountId()->toString(),
             'payment_method_id' => $payIn->paymentMethodId()->toString(),
             'amount' => $payIn->amount()->minorUnits(),

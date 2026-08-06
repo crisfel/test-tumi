@@ -27,6 +27,7 @@ final class PayIn
      */
     private function __construct(
         private readonly Transaction $transaction,
+        private readonly AccountId $originAccountId,
         private readonly AccountId $accountId,
         private readonly PaymentMethodId $paymentMethodId,
         private readonly Money $fees,
@@ -41,6 +42,7 @@ final class PayIn
     public static function create(
         TransactionId $id,
         ClientId $clientId,
+        AccountId $originAccountId,
         AccountId $accountId,
         PaymentMethodId $paymentMethodId,
         Money $amount,
@@ -50,6 +52,7 @@ final class PayIn
     ): self {
         $payIn = new self(
             transaction: Transaction::create($id, $clientId, $amount, $reference, $createdAt),
+            originAccountId: $originAccountId,
             accountId: $accountId,
             paymentMethodId: $paymentMethodId,
             fees: $fees,
@@ -62,6 +65,7 @@ final class PayIn
     public static function reconstitute(
         TransactionId $id,
         ClientId $clientId,
+        AccountId $originAccountId,
         AccountId $accountId,
         PaymentMethodId $paymentMethodId,
         Money $amount,
@@ -93,6 +97,7 @@ final class PayIn
                 $errorMessage,
                 $processedAt,
             ),
+            originAccountId: $originAccountId,
             accountId: $accountId,
             paymentMethodId: $paymentMethodId,
             fees: $fees,
@@ -185,6 +190,11 @@ final class PayIn
     public function accountId(): AccountId
     {
         return $this->accountId;
+    }
+
+    public function originAccountId(): AccountId
+    {
+        return $this->originAccountId;
     }
 
     public function paymentMethodId(): PaymentMethodId

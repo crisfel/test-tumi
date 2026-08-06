@@ -21,6 +21,10 @@ use PayIn\Application\Port\Logger;
 use PayIn\Application\Port\PaymentGatewayRegistry;
 use PayIn\Application\Port\TransactionManager;
 use PayIn\Application\Result\ChargeResult;
+use PayIn\Domain\Account\AccountMovement;
+use PayIn\Domain\Account\AccountMovementId;
+use PayIn\Domain\Account\AccountMovementType;
+use PayIn\Domain\Contracts\AccountMovementRepository;
 use PayIn\Domain\Contracts\AccountRepository;
 use PayIn\Domain\Contracts\ClientRepository;
 use PayIn\Domain\Contracts\PayInRepository;
@@ -38,12 +42,15 @@ use PayIn\Domain\PayIn\TransactionId;
  *
  * Flujo:
  *  1. Verificación de idempotencia por referencia.
- *  2. Transacción A: carga de aggregates, validación de dominio,
- *     creación del PayIn (CREATED) y persistencia inicial (VALIDATED).
+ *  2. Transacción A: carga de aggregates, validación de dominio
+ *     (origen con saldo suficiente), creación del PayIn (CREATED) y
+ *     persistencia inicial (VALIDATED).
  *  3. Resolución del proveedor (Strategy) y cobro FUERA de la transacción
  *     para no retener locks mientras el proveedor responde.
- *  4. Transacción B: aplicación del resultado (PROCESSED/FAILED), abono a
- *     la cuenta en caso de éxito y persistencia final.
+ *  4. Transacción B: aplicación del resultado (PROCESSED/FAILED),
+ *     DEBITO del origen + CRÉDITO del destino (en caso de éxito), registro
+ *     de movimientos en el libro mayor y persistencia final — todo
+ *     atómico.
  *
  * El proveedor se invoca fuera de cualquier transacción; los eventos de
  * dominio se despachan siempre después de cada commit.
@@ -56,6 +63,7 @@ final readonly class ProcessPayInService
         private PaymentMethodRepository $paymentMethods,
         private PaymentProviderRepository $providers,
         private PayInRepository $payIns,
+        private AccountMovementRepository $movements,
         private PayInValidator $validator,
         private PaymentGatewayRegistry $gateways,
         private TransactionManager $transactions,
@@ -116,6 +124,9 @@ final readonly class ProcessPayInService
         $client = $this->clients->findById($command->clientId)
             ?? throw new ClientNotFoundException($command->clientId->toString());
 
+        $originAccount = $this->accounts->findById($command->originAccountId)
+            ?? throw new AccountNotFoundException($command->originAccountId->toString());
+
         $account = $this->accounts->findById($command->accountId)
             ?? throw new AccountNotFoundException($command->accountId->toString());
 
@@ -128,6 +139,7 @@ final readonly class ProcessPayInService
         $payIn = PayIn::create(
             id: TransactionId::generate(),
             clientId: $client->id(),
+            originAccountId: $originAccount->id(),
             accountId: $account->id(),
             paymentMethodId: $paymentMethod->id(),
             amount: $command->amount,
@@ -136,7 +148,7 @@ final readonly class ProcessPayInService
             createdAt: $this->clock->now(),
         );
 
-        $this->validator->validate($payIn, $account, $paymentMethod, $provider);
+        $this->validator->validate($payIn, $client, $originAccount, $account, $paymentMethod, $provider);
 
         $this->payIns->save($payIn);
         $payIn->markValidated();
@@ -145,6 +157,7 @@ final readonly class ProcessPayInService
         $this->logger->info('payin.process.initialized', [
             'payin_id' => $payIn->id()->toString(),
             'client_id' => $client->id()->toString(),
+            'origin_account_id' => $originAccount->id()->toString(),
             'account_id' => $account->id()->toString(),
             'payment_method_id' => $paymentMethod->id()->toString(),
             'amount' => $payIn->amount()->minorUnits(),
@@ -153,7 +166,7 @@ final readonly class ProcessPayInService
             'status' => $payIn->status()->value,
         ]);
 
-        return new ProcessingContext($payIn, $account, $paymentMethod, $provider);
+        return new ProcessingContext($payIn, $originAccount, $account, $paymentMethod, $provider);
     }
 
     /**
@@ -210,11 +223,7 @@ final readonly class ProcessPayInService
                 processedAt: $this->clock->now(),
             );
 
-            $account = $this->accounts->findById($context->payIn->accountId());
-            if ($account instanceof \PayIn\Domain\Account\Account) {
-                $account->credit($payIn->amount());
-                $this->accounts->save($account);
-            }
+            $this->applyFundsTransfer($context, $payIn);
         } else {
             $payIn->markFailed(
                 errorCode: $chargeResult->errorCode ?? $chargeResult->outcome->value,
@@ -230,6 +239,44 @@ final readonly class ProcessPayInService
         ]);
 
         return ProcessPayInResponse::fromPayIn($payIn);
+    }
+
+    /**
+     * Debita la cuenta de origen, acredita la cuenta destino y registra los
+     * movimientos del libro mayor. Todo ocurre dentro de la transacción B.
+     */
+    private function applyFundsTransfer(ProcessingContext $context, PayIn $payIn): void
+    {
+        $occurredAt = $this->clock->now();
+
+        $origin = $this->accounts->findById($payIn->originAccountId())
+            ?? throw new AccountNotFoundException($payIn->originAccountId()->toString());
+        $destination = $this->accounts->findById($payIn->accountId())
+            ?? throw new AccountNotFoundException($payIn->accountId()->toString());
+
+        $origin->debit($payIn->amount());
+        $this->accounts->save($origin);
+        $this->movements->save(AccountMovement::record(
+            AccountMovementId::generate(),
+            $origin->id(),
+            AccountMovementType::DEBIT,
+            $payIn->amount(),
+            $origin->balance(),
+            $payIn->id(),
+            $occurredAt,
+        ));
+
+        $destination->credit($payIn->amount());
+        $this->accounts->save($destination);
+        $this->movements->save(AccountMovement::record(
+            AccountMovementId::generate(),
+            $destination->id(),
+            AccountMovementType::CREDIT,
+            $payIn->amount(),
+            $destination->balance(),
+            $payIn->id(),
+            $occurredAt,
+        ));
     }
 
     private function assertReferenceIsFree(ProcessPayInCommand $command): void

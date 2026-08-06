@@ -89,7 +89,7 @@
                     "Accounts"
                 ],
                 "summary": "Abrir una cuenta",
-                "description": "Abre una cuenta para un cliente en una moneda (saldo inicial cero).\n\nLa plataforma permite una única cuenta por cliente y moneda\n(409 si ya existe).",
+                "description": "Abre una cuenta para un cliente en una moneda.\n\nEl campo opcional initial_balance (unidades menores) asigna un saldo\ninicial; por defecto la cuenta abre en cero. La plataforma permite\nuna única cuenta por cliente y moneda (409 si ya existe).",
                 "operationId": "5d342aef990614a23ee928015622867d",
                 "parameters": [
                     {
@@ -193,6 +193,151 @@
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/AccountResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Cuenta inexistente",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/accounts/{id}/balance": {
+            "patch": {
+                "tags": [
+                    "Accounts"
+                ],
+                "summary": "Ajustar saldo de una cuenta",
+                "description": "Ajusta el saldo de una cuenta.\n\ndirection \"increase\" AUMENTA el saldo (crédito); direction \"decrease\"\nDISMINUYE el saldo (débito) y requiere saldo suficiente\n(422 INSUFFICIENT_FUNDS si no lo hay). Cada ajuste queda registrado\nen el libro mayor de la cuenta.",
+                "operationId": "fe44656000a31203e0e0c64132303c45",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "UUID de la cuenta",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "X-Correlation-Id",
+                        "in": "header",
+                        "description": "Identificador de correlación para trazabilidad",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AdjustAccountBalanceRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Saldo ajustado (cuenta actualizada)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AccountResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Cuenta inexistente",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Datos inválidos o saldo insuficiente (decrease)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/accounts/{id}/movements": {
+            "get": {
+                "tags": [
+                    "Accounts"
+                ],
+                "summary": "Extracto de una cuenta",
+                "description": "Consulta el extracto (movimientos) de una cuenta.\n\nDevuelve los débitos y créditos del libro mayor del más reciente al\nmás antiguo, con el saldo resultante de cada movimiento.",
+                "operationId": "34971f8ea92f137c7263ce9c4bd6d2a0",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "UUID de la cuenta",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 20,
+                            "maximum": 100
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 0
+                        }
+                    },
+                    {
+                        "name": "X-Correlation-Id",
+                        "in": "header",
+                        "description": "Identificador de correlación para trazabilidad",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Página de movimientos",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AccountMovementPage"
                                 }
                             }
                         }
@@ -837,6 +982,106 @@
     },
     "components": {
         "schemas": {
+            "AccountMovementPage": {
+                "required": [
+                    "data",
+                    "meta"
+                ],
+                "properties": {
+                    "data": {
+                        "description": "Schema OpenAPI de la página del extracto de una cuenta.",
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/AccountMovement"
+                        }
+                    },
+                    "meta": {
+                        "required": [
+                            "total",
+                            "limit",
+                            "offset"
+                        ],
+                        "properties": {
+                            "total": {
+                                "type": "integer",
+                                "example": 2
+                            },
+                            "limit": {
+                                "type": "integer",
+                                "example": 20
+                            },
+                            "offset": {
+                                "type": "integer",
+                                "example": 0
+                            }
+                        },
+                        "type": "object"
+                    }
+                },
+                "type": "object"
+            },
+            "AccountMovement": {
+                "required": [
+                    "id",
+                    "account_id",
+                    "type",
+                    "amount",
+                    "currency",
+                    "balance_after",
+                    "occurred_at"
+                ],
+                "properties": {
+                    "id": {
+                        "description": "Schema OpenAPI de un movimiento del libro mayor (extracto).",
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "account_id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "type": {
+                        "description": "credit: aumenta el saldo · debit: disminuye el saldo",
+                        "type": "string",
+                        "enum": [
+                            "credit",
+                            "debit"
+                        ],
+                        "example": "debit"
+                    },
+                    "amount": {
+                        "description": "Monto del movimiento en unidades menores",
+                        "type": "integer",
+                        "example": 2000
+                    },
+                    "currency": {
+                        "type": "string",
+                        "enum": [
+                            "COP",
+                            "USD",
+                            "EUR",
+                            "MXN"
+                        ],
+                        "example": "COP"
+                    },
+                    "balance_after": {
+                        "description": "Saldo de la cuenta después del movimiento",
+                        "type": "integer",
+                        "example": 8000
+                    },
+                    "pay_in_id": {
+                        "description": "PayIn relacionado (null en ajustes manuales y apertura)",
+                        "type": "string",
+                        "format": "uuid",
+                        "nullable": true
+                    },
+                    "occurred_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                },
+                "type": "object"
+            },
             "AccountPage": {
                 "required": [
                     "data",
@@ -919,6 +1164,42 @@
                         "description": "Saldo en unidades menores (enteras)",
                         "type": "integer",
                         "example": 0
+                    }
+                },
+                "type": "object"
+            },
+            "AdjustAccountBalanceRequest": {
+                "required": [
+                    "amount",
+                    "direction",
+                    "currency"
+                ],
+                "properties": {
+                    "amount": {
+                        "description": "Monto del ajuste en unidades menores",
+                        "type": "integer",
+                        "minimum": 1,
+                        "example": 5000
+                    },
+                    "direction": {
+                        "description": "\"increase\" AUMENTA el saldo (crédito); \"decrease\" DISMINUYE el saldo (débito, requiere fondos)",
+                        "type": "string",
+                        "enum": [
+                            "increase",
+                            "decrease"
+                        ],
+                        "example": "increase"
+                    },
+                    "currency": {
+                        "description": "Moneda del ajuste",
+                        "type": "string",
+                        "enum": [
+                            "COP",
+                            "USD",
+                            "EUR",
+                            "MXN"
+                        ],
+                        "example": "COP"
                     }
                 },
                 "type": "object"
@@ -1080,10 +1361,17 @@
                         "format": "uuid",
                         "example": "019fd715-ebf8-7223-ada8-b3c168a28e22"
                     },
-                    "account_id": {
+                    "origin_account_id": {
+                        "description": "Cuenta del pagador (se debita)",
                         "type": "string",
                         "format": "uuid",
                         "example": "019fd715-ec1a-7a7e-ab6f-f497aa52abe4"
+                    },
+                    "account_id": {
+                        "description": "Cuenta destino (se abona)",
+                        "type": "string",
+                        "format": "uuid",
+                        "example": "019fd715-ec22-700c-8cba-ea026d0fd9a9"
                     },
                     "payment_method_id": {
                         "type": "string",
@@ -1371,6 +1659,12 @@
                             "MXN"
                         ],
                         "example": "COP"
+                    },
+                    "initial_balance": {
+                        "description": "Saldo inicial en unidades menores (opcional; por defecto 0)",
+                        "type": "integer",
+                        "minimum": 0,
+                        "example": 10000
                     }
                 },
                 "type": "object"
@@ -1399,6 +1693,7 @@
             "StorePayInRequest": {
                 "required": [
                     "client_id",
+                    "origin_account_id",
                     "account_id",
                     "payment_method_id",
                     "amount",
@@ -1406,19 +1701,25 @@
                 ],
                 "properties": {
                     "client_id": {
-                        "description": "UUID del cliente que origina la operación",
+                        "description": "UUID del cliente que paga (originador)",
                         "type": "string",
                         "format": "uuid",
                         "example": "019fd715-ebf8-7223-ada8-b3c168a28e22"
                     },
-                    "account_id": {
-                        "description": "UUID de la cuenta destino",
+                    "origin_account_id": {
+                        "description": "UUID de la cuenta del pagador: se DEBITA su saldo y debe pertenecer al cliente",
                         "type": "string",
                         "format": "uuid",
                         "example": "019fd715-ec1a-7a7e-ab6f-f497aa52abe4"
                     },
+                    "account_id": {
+                        "description": "UUID de la cuenta destino: se ACREDITA su saldo (puede ser de cualquier cliente)",
+                        "type": "string",
+                        "format": "uuid",
+                        "example": "019fd715-ec22-700c-8cba-ea026d0fd9a9"
+                    },
                     "payment_method_id": {
-                        "description": "UUID del método de pago",
+                        "description": "UUID del método de pago (instrumento)",
                         "type": "string",
                         "format": "uuid",
                         "example": "019fd715-ec43-784b-97dd-9b2fe70bfe69"
@@ -1426,7 +1727,6 @@
                     "amount": {
                         "description": "Monto en unidades menores (enteras) de la moneda",
                         "type": "integer",
-                        "minimum": 1,
                         "example": 25000
                     },
                     "currency": {

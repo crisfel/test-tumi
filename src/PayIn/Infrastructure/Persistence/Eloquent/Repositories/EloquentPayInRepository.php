@@ -154,6 +154,7 @@ final class EloquentPayInRepository implements PayInRepository
         PayInModel::query()->updateOrCreate(
             ['transaction_id' => $id],
             [
+                'origin_account_id' => $payIn->origin_account_id,
                 'account_id' => $payIn->account_id,
                 'payment_method_id' => $payIn->payment_method_id,
                 'fees' => $payIn->fees,

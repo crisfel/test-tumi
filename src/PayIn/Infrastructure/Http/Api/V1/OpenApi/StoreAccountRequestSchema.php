@@ -15,6 +15,7 @@ use OpenApi\Attributes as OA;
     properties: [
         new OA\Property(property: 'client_id', description: 'UUID del cliente titular de la cuenta', type: 'string', format: 'uuid', example: '019fd715-ebf8-7223-ada8-b3c168a28e22'),
         new OA\Property(property: 'currency', description: 'Moneda de la cuenta (una por cliente y moneda)', type: 'string', enum: ['COP', 'USD', 'EUR', 'MXN'], example: 'COP'),
+        new OA\Property(property: 'initial_balance', description: 'Saldo inicial en unidades menores (opcional; por defecto 0)', type: 'integer', minimum: 0, example: 10000),
     ],
 )]
 final class StoreAccountRequestSchema

@@ -17,6 +17,7 @@ final readonly class ProcessingContext
 {
     public function __construct(
         public PayIn $payIn,
+        public Account $originAccount,
         public Account $account,
         public PaymentMethod $paymentMethod,
         public PaymentProvider $provider,

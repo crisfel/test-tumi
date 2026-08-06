@@ -46,6 +46,36 @@ final class MoneyTest extends TestCase
         $this->assertSame(1500, $sum->minorUnits());
     }
 
+    public function test_subtracts_amounts_of_same_currency(): void
+    {
+        $result = Money::fromMinorUnits(1000, Currency::COP)->subtract(Money::fromMinorUnits(400, Currency::COP));
+
+        $this->assertSame(600, $result->minorUnits());
+    }
+
+    public function test_subtract_rejects_negative_result(): void
+    {
+        $this->expectException(InvalidAmountException::class);
+
+        Money::fromMinorUnits(1000, Currency::COP)->subtract(Money::fromMinorUnits(2000, Currency::COP));
+    }
+
+    public function test_rejects_subtracting_different_currencies(): void
+    {
+        $this->expectException(CurrencyMismatchException::class);
+
+        Money::fromMinorUnits(1000, Currency::COP)->subtract(Money::fromMinorUnits(500, Currency::USD));
+    }
+
+    public function test_is_greater_than_or_equal(): void
+    {
+        $balance = Money::fromMinorUnits(1000, Currency::COP);
+
+        $this->assertTrue($balance->isGreaterThanOrEqual(Money::fromMinorUnits(1000, Currency::COP)));
+        $this->assertTrue($balance->isGreaterThanOrEqual(Money::fromMinorUnits(500, Currency::COP)));
+        $this->assertFalse($balance->isGreaterThanOrEqual(Money::fromMinorUnits(1500, Currency::COP)));
+    }
+
     public function test_rejects_adding_different_currencies(): void
     {
         $this->expectException(CurrencyMismatchException::class);

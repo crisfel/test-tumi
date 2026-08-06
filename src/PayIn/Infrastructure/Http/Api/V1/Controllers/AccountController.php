@@ -7,13 +7,18 @@ namespace PayIn\Infrastructure\Http\Api\V1\Controllers;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use OpenApi\Attributes as OA;
+use PayIn\Application\UseCase\AdjustAccountBalanceService;
+use PayIn\Application\UseCase\ListAccountMovementsService;
 use PayIn\Application\UseCase\ListAccountsService;
 use PayIn\Application\UseCase\OpenAccountService;
 use PayIn\Application\UseCase\QueryAccountService;
 use PayIn\Domain\Account\AccountId;
+use PayIn\Infrastructure\Http\FormRequests\AdjustAccountBalanceRequest;
+use PayIn\Infrastructure\Http\FormRequests\ListAccountMovementsRequest;
 use PayIn\Infrastructure\Http\FormRequests\ListAccountsRequest;
 use PayIn\Infrastructure\Http\FormRequests\StoreAccountRequest;
 use PayIn\Infrastructure\Http\Resources\AccountCollectionResource;
+use PayIn\Infrastructure\Http\Resources\AccountMovementCollectionResource;
 use PayIn\Infrastructure\Http\Resources\AccountResource;
 
 /**
@@ -28,14 +33,17 @@ final readonly class AccountController
         private OpenAccountService $openAccount,
         private QueryAccountService $queryAccount,
         private ListAccountsService $listAccounts,
+        private AdjustAccountBalanceService $adjustBalance,
+        private ListAccountMovementsService $listMovements,
     ) {
     }
 
     /**
-     * Abre una cuenta para un cliente en una moneda (saldo inicial cero).
+     * Abre una cuenta para un cliente en una moneda.
      *
-     * La plataforma permite una única cuenta por cliente y moneda
-     * (409 si ya existe).
+     * El campo opcional initial_balance (unidades menores) asigna un saldo
+     * inicial; por defecto la cuenta abre en cero. La plataforma permite
+     * una única cuenta por cliente y moneda (409 si ya existe).
      */
     #[OA\Post(
         path: '/v1/accounts',
@@ -140,5 +148,86 @@ final readonly class AccountController
         $page = $this->listAccounts->execute($request->toCriteria());
 
         return new AccountCollectionResource($page->items, $page->total, $page->limit, $page->offset);
+    }
+
+    /**
+     * Ajusta el saldo de una cuenta.
+     *
+     * direction "increase" AUMENTA el saldo (crédito); direction "decrease"
+     * DISMINUYE el saldo (débito) y requiere saldo suficiente
+     * (422 INSUFFICIENT_FUNDS si no lo hay). Cada ajuste queda registrado
+     * en el libro mayor de la cuenta.
+     */
+    #[OA\Patch(
+        path: '/v1/accounts/{id}/balance',
+        summary: 'Ajustar saldo de una cuenta',
+        tags: ['Accounts'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, description: 'UUID de la cuenta', schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'X-Correlation-Id', in: 'header', required: false, description: 'Identificador de correlación para trazabilidad', schema: new OA\Schema(type: 'string')),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(ref: '#/components/schemas/AdjustAccountBalanceRequest'),
+        ),
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Saldo ajustado (cuenta actualizada)',
+                content: new OA\JsonContent(ref: '#/components/schemas/AccountResponse'),
+            ),
+            new OA\Response(
+                response: 404,
+                description: 'Cuenta inexistente',
+                content: new OA\JsonContent(ref: '#/components/schemas/ErrorResponse'),
+            ),
+            new OA\Response(
+                response: 422,
+                description: 'Datos inválidos o saldo insuficiente (decrease)',
+                content: new OA\JsonContent(ref: '#/components/schemas/ErrorResponse'),
+            ),
+        ],
+    )]
+    public function adjustBalance(string $id, AdjustAccountBalanceRequest $request): AccountResource
+    {
+        $account = $this->adjustBalance->adjust($request->toCommand($id));
+
+        return new AccountResource($account);
+    }
+
+    /**
+     * Consulta el extracto (movimientos) de una cuenta.
+     *
+     * Devuelve los débitos y créditos del libro mayor del más reciente al
+     * más antiguo, con el saldo resultante de cada movimiento.
+     */
+    #[OA\Get(
+        path: '/v1/accounts/{id}/movements',
+        summary: 'Extracto de una cuenta',
+        tags: ['Accounts'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, description: 'UUID de la cuenta', schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'limit', in: 'query', required: false, schema: new OA\Schema(type: 'integer', maximum: 100, default: 20)),
+            new OA\Parameter(name: 'offset', in: 'query', required: false, schema: new OA\Schema(type: 'integer', default: 0)),
+            new OA\Parameter(name: 'X-Correlation-Id', in: 'header', required: false, description: 'Identificador de correlación para trazabilidad', schema: new OA\Schema(type: 'string')),
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Página de movimientos',
+                content: new OA\JsonContent(ref: '#/components/schemas/AccountMovementPage'),
+            ),
+            new OA\Response(
+                response: 404,
+                description: 'Cuenta inexistente',
+                content: new OA\JsonContent(ref: '#/components/schemas/ErrorResponse'),
+            ),
+        ],
+    )]
+    public function movements(string $id, ListAccountMovementsRequest $request): AccountMovementCollectionResource
+    {
+        $page = $this->listMovements->execute($request->toCriteria($id));
+
+        return new AccountMovementCollectionResource($page->items, $page->total, $page->limit, $page->offset);
     }
 }
