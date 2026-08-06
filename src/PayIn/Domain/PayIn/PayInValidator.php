@@ -62,7 +62,7 @@ final class PayInValidator
         }
 
         if (!$provider->isActive()) {
-            throw new ProviderInactiveException($payIn->id()->toString(), $provider->code()->value());
+            throw new ProviderInactiveException($provider->code()->value(), $payIn->id()->toString());
         }
     }
 }

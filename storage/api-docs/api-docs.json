@@ -495,6 +495,204 @@
                 }
             }
         },
+        "/v1/payment-methods": {
+            "get": {
+                "tags": [
+                    "Payment Methods"
+                ],
+                "summary": "Listar métodos de pago de una cuenta",
+                "description": "Lista los métodos de pago de una cuenta con paginación.",
+                "operationId": "a898066d6de1a49380895e596ed98e9d",
+                "parameters": [
+                    {
+                        "name": "account_id",
+                        "in": "query",
+                        "description": "UUID de la cuenta",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid",
+                            "example": "019fd715-ec1a-7a7e-ab6f-f497aa52abe4"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 20,
+                            "maximum": 100
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 0
+                        }
+                    },
+                    {
+                        "name": "X-Correlation-Id",
+                        "in": "header",
+                        "description": "Identificador de correlación para trazabilidad",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Página de métodos de pago de la cuenta",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PaymentMethodPage"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Cuenta inexistente",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "Payment Methods"
+                ],
+                "summary": "Registrar un método de pago",
+                "description": "Registra un método de pago en una cuenta.\n\nEl proveedor se resuelve por su código y debe estar activo. Un token\nno puede registrarse dos veces en la misma cuenta (409).",
+                "operationId": "7a31b83b8ad92533fa7b88db0a3b3052",
+                "parameters": [
+                    {
+                        "name": "X-Correlation-Id",
+                        "in": "header",
+                        "description": "Identificador de correlación para trazabilidad",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/StorePaymentMethodRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Método de pago registrado",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PaymentMethodResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Datos de entrada inválidos o proveedor inactivo",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Cuenta o proveedor inexistente",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "El token ya está registrado en la cuenta",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/payment-methods/{id}": {
+            "get": {
+                "tags": [
+                    "Payment Methods"
+                ],
+                "summary": "Consultar un método de pago",
+                "description": "Consulta un método de pago por su identificador.",
+                "operationId": "2d8dbe902fbae3e09f32dfce95154fdf",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "UUID del método de pago",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid",
+                            "example": "019fd715-ec43-784b-97dd-9b2fe70bfe69"
+                        }
+                    },
+                    {
+                        "name": "X-Correlation-Id",
+                        "in": "header",
+                        "description": "Identificador de correlación para trazabilidad",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Método de pago encontrado",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PaymentMethodResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Método de pago inexistente",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/up": {
             "get": {
                 "tags": [
@@ -838,6 +1036,108 @@
                 },
                 "type": "object"
             },
+            "PaymentMethodPage": {
+                "required": [
+                    "data",
+                    "meta"
+                ],
+                "properties": {
+                    "data": {
+                        "description": "Schema OpenAPI de la página de listado de métodos de pago.",
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/PaymentMethod"
+                        }
+                    },
+                    "meta": {
+                        "required": [
+                            "total",
+                            "limit",
+                            "offset"
+                        ],
+                        "properties": {
+                            "total": {
+                                "type": "integer",
+                                "example": 2
+                            },
+                            "limit": {
+                                "type": "integer",
+                                "example": 20
+                            },
+                            "offset": {
+                                "type": "integer",
+                                "example": 0
+                            }
+                        },
+                        "type": "object"
+                    }
+                },
+                "type": "object"
+            },
+            "PaymentMethodResponse": {
+                "required": [
+                    "data"
+                ],
+                "properties": {
+                    "data": {
+                        "$ref": "#/components/schemas/PaymentMethod"
+                    }
+                },
+                "type": "object"
+            },
+            "PaymentMethod": {
+                "required": [
+                    "id",
+                    "account_id",
+                    "provider_id",
+                    "type",
+                    "details_masked",
+                    "is_active",
+                    "created_at"
+                ],
+                "properties": {
+                    "id": {
+                        "description": "Schema OpenAPI de la representación de un método de pago.\n\nEl token nunca se expone en las respuestas.",
+                        "type": "string",
+                        "format": "uuid",
+                        "example": "019fd715-ec43-784b-97dd-9b2fe70bfe69"
+                    },
+                    "account_id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "example": "019fd715-ec1a-7a7e-ab6f-f497aa52abe4"
+                    },
+                    "provider_id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "example": "019fd715-eb24-7683-b8d2-9d83ffdca22d"
+                    },
+                    "type": {
+                        "type": "string",
+                        "enum": [
+                            "card",
+                            "bank_transfer",
+                            "wallet",
+                            "pse"
+                        ],
+                        "example": "card"
+                    },
+                    "details_masked": {
+                        "type": "string",
+                        "example": "**** 4242"
+                    },
+                    "is_active": {
+                        "type": "boolean",
+                        "example": true
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2026-08-06T12:54:23Z"
+                    }
+                },
+                "type": "object"
+            },
             "StoreAccountRequest": {
                 "required": [
                     "client_id",
@@ -936,6 +1236,50 @@
                     }
                 },
                 "type": "object"
+            },
+            "StorePaymentMethodRequest": {
+                "required": [
+                    "account_id",
+                    "provider_code",
+                    "type",
+                    "token",
+                    "details_masked"
+                ],
+                "properties": {
+                    "account_id": {
+                        "description": "UUID de la cuenta titular",
+                        "type": "string",
+                        "format": "uuid",
+                        "example": "019fd715-ec1a-7a7e-ab6f-f497aa52abe4"
+                    },
+                    "provider_code": {
+                        "description": "Código del proveedor que procesará el cobro",
+                        "type": "string",
+                        "example": "fakepay"
+                    },
+                    "type": {
+                        "description": "Tipo de método de pago",
+                        "type": "string",
+                        "enum": [
+                            "card",
+                            "bank_transfer",
+                            "wallet",
+                            "pse"
+                        ],
+                        "example": "card"
+                    },
+                    "token": {
+                        "description": "Token opaco de cobro (nunca el PAN)",
+                        "type": "string",
+                        "example": "tok_card_visa_4242"
+                    },
+                    "details_masked": {
+                        "description": "Detalle enmascarado para mostrar al cliente",
+                        "type": "string",
+                        "example": "**** 4242"
+                    }
+                },
+                "type": "object"
             }
         }
     },
@@ -951,6 +1295,10 @@
         {
             "name": "Accounts",
             "description": "Operaciones de cuentas"
+        },
+        {
+            "name": "Payment Methods",
+            "description": "Operaciones de métodos de pago"
         },
         {
             "name": "System",

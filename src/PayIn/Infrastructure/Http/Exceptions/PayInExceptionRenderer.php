@@ -15,6 +15,7 @@ use PayIn\Application\Exception\PayInConcurrencyException;
 use PayIn\Application\Exception\PayInNotFoundException;
 use PayIn\Application\Exception\PayInProcessingException;
 use PayIn\Application\Exception\PaymentGatewayNotFoundException;
+use PayIn\Application\Exception\PaymentMethodAlreadyExistsException;
 use PayIn\Application\Exception\PaymentMethodNotFoundException;
 use PayIn\Application\Exception\PaymentProviderNotFoundException;
 use PayIn\Application\Exception\ReferenceAlreadyUsedException;
@@ -90,6 +91,7 @@ final class PayInExceptionRenderer
             $exception instanceof ReferenceAlreadyUsedException,
             $exception instanceof ClientAlreadyExistsException,
             $exception instanceof AccountAlreadyExistsException,
+            $exception instanceof PaymentMethodAlreadyExistsException,
             $exception instanceof PayInConcurrencyException => $this->renderDomainException($exception, 409),
             $exception instanceof PaymentGatewayNotFoundException,
             $exception instanceof PayInProcessingException => $this->renderDomainException($exception, 502),

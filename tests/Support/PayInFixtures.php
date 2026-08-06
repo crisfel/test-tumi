@@ -59,13 +59,14 @@ final class PayInFixtures
         ProviderId $providerId,
         ?PaymentMethodId $id = null,
         bool $active = true,
+        string $token = 'tok_card_abc123',
     ): PaymentMethod {
         return PaymentMethod::reconstitute(
             $id ?? PaymentMethodId::generate(),
             $accountId,
             $providerId,
             PaymentMethodType::CARD,
-            'tok_card_abc123',
+            $token,
             '**** 4242',
             $active,
             new \DateTimeImmutable(self::NOW),

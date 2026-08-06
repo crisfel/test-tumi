@@ -4,36 +4,43 @@ declare(strict_types=1);
 
 namespace PayIn\Domain\PaymentProvider;
 
+use PayIn\Domain\PaymentMethod\PaymentMethodType;
+
 /**
  * Aggregate Root: Proveedor de pago registrado en la plataforma.
  *
  * El catálogo de proveedores se persiste y se siembra con los adapters
- * disponibles. Su "code" es la clave de resolución en el Registry.
+ * disponibles. Declara la matriz de capacidades (supportedTypes): los
+ * tipos de método de pago que la pasarela puede procesar.
  */
-final readonly class PaymentProvider
+final class PaymentProvider
 {
     private const MAX_NAME_LENGTH = 100;
 
     /**
-     * @param array<string, mixed> $configuration
+     * @param list<PaymentMethodType> $supportedTypes
+     * @param array<string, mixed>    $configuration
      */
     private function __construct(
-        private ProviderId $id,
-        private ProviderCode $code,
-        private string $name,
-        private bool $active,
-        private array $configuration,
+        private readonly ProviderId $id,
+        private readonly ProviderCode $code,
+        private readonly string $name,
+        private readonly bool $active,
+        private readonly array $supportedTypes,
+        private readonly array $configuration,
     ) {
     }
 
     /**
-     * @param array<string, mixed> $configuration
+     * @param list<PaymentMethodType> $supportedTypes
+     * @param array<string, mixed>    $configuration
      */
     public static function register(
         ProviderId $id,
         ProviderCode $code,
         string $name,
         bool $active,
+        array $supportedTypes = [],
         array $configuration = [],
     ): self {
         $name = trim($name);
@@ -42,20 +49,27 @@ final readonly class PaymentProvider
             throw new \InvalidArgumentException('El nombre del proveedor no puede exceder 100 caracteres.');
         }
 
-        return new self($id, $code, $name, $active, $configuration);
+        return new self($id, $code, $name, $active, $supportedTypes, $configuration);
     }
 
     /**
-     * @param array<string, mixed> $configuration
+     * @param list<PaymentMethodType> $supportedTypes
+     * @param array<string, mixed>    $configuration
      */
     public static function reconstitute(
         ProviderId $id,
         ProviderCode $code,
         string $name,
         bool $active,
+        array $supportedTypes = [],
         array $configuration = [],
     ): self {
-        return new self($id, $code, $name, $active, $configuration);
+        return new self($id, $code, $name, $active, $supportedTypes, $configuration);
+    }
+
+    public function supports(PaymentMethodType $type): bool
+    {
+        return in_array($type, $this->supportedTypes, true);
     }
 
     public function isActive(): bool
@@ -76,6 +90,14 @@ final readonly class PaymentProvider
     public function name(): string
     {
         return $this->name;
+    }
+
+    /**
+     * @return list<PaymentMethodType>
+     */
+    public function supportedTypes(): array
+    {
+        return $this->supportedTypes;
     }
 
     /**

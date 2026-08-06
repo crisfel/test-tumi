@@ -9,14 +9,18 @@ namespace PayIn\Domain\Exceptions;
  */
 final class ProviderInactiveException extends PayInValidationException
 {
-    public function __construct(string $payInId, string $providerCode)
+    public function __construct(string $providerCode, ?string $payInId = null)
     {
+        $message = $payInId !== null
+            ? sprintf('El proveedor de pago "%s" se encuentra inactivo para el PayIn "%s".', $providerCode, $payInId)
+            : sprintf('El proveedor de pago "%s" se encuentra inactivo.', $providerCode);
+
         parent::__construct(
-            sprintf('El proveedor de pago "%s" se encuentra inactivo para el PayIn "%s".', $providerCode, $payInId),
+            $message,
             'PROVIDER_INACTIVE',
             [
-                'payin_id' => $payInId,
                 'provider' => $providerCode,
+                'payin_id' => $payInId,
             ],
         );
     }

@@ -208,6 +208,9 @@ Cada estado declara sus transiciones permitidas en `PayInStatus::transitions()`;
 | `POST` | `/api/v1/accounts` | Abre una cuenta (una por cliente y moneda) |
 | `GET` | `/api/v1/accounts/{id}` | Consulta una cuenta por UUID |
 | `GET` | `/api/v1/accounts?client_id={uuid}` | Lista las cuentas de un cliente (paginado) |
+| `POST` | `/api/v1/payment-methods` | Registra un método de pago (token único por cuenta) |
+| `GET` | `/api/v1/payment-methods/{id}` | Consulta un método de pago por UUID |
+| `GET` | `/api/v1/payment-methods?account_id={uuid}` | Lista los métodos de una cuenta (paginado) |
 | `POST` | `/api/v1/payins` | Crea y procesa un PayIn (orquestación completa) |
 | `GET` | `/api/v1/payins/{id}` | Consulta por UUID |
 | `GET` | `/api/v1/payins` | Listado paginado con filtros (`status`, `from`, `to`, `limit`, `offset`) |
@@ -228,6 +231,18 @@ Cada estado declara sus transiciones permitidas en `PayInStatus::transitions()`;
 {
   "client_id": "019f0000-0000-7000-8000-000000000001",
   "currency": "COP"
+}
+```
+
+**Ejemplo de petición (registrar método de pago):**
+
+```json
+{
+  "account_id": "019f0000-0000-7000-8000-000000000002",
+  "provider_code": "fakepay",
+  "type": "card",
+  "token": "tok_card_visa_4242",
+  "details_masked": "**** 4242"
 }
 ```
 

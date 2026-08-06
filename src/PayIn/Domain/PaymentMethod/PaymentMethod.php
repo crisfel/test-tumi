@@ -4,16 +4,16 @@ declare(strict_types=1);
 
 namespace PayIn\Domain\PaymentMethod;
 
-use PayIn\Domain\Account\Account;
-use PayIn\Domain\Account\AccountId;
 use PayIn\Domain\PaymentProvider\PaymentProvider;
 use PayIn\Domain\PaymentProvider\ProviderId;
 
 /**
- * Aggregate Root: Método de pago registrado en una cuenta.
+ * Aggregate Root: Método de pago (instrumento de cobro).
  *
- * Referencia el proveedor que lo procesa y contiene un token opaco de
- * cobro (nunca datos sensibles de tarjeta en claro).
+ * Es un instrumento independiente: no pertenece a ningún cliente ni a
+ * ninguna cuenta. Lleva el token opaco emitido por el proveedor que lo
+ * tokenizó (estándar de industria: el token pertenece a la pasarela), por
+ * lo que está vinculado al proveedor que lo procesará.
  */
 final readonly class PaymentMethod
 {
@@ -21,7 +21,6 @@ final readonly class PaymentMethod
 
     private function __construct(
         private PaymentMethodId $id,
-        private AccountId $accountId,
         private ProviderId $providerId,
         private PaymentMethodType $type,
         private string $token,
@@ -33,7 +32,6 @@ final readonly class PaymentMethod
 
     public static function register(
         PaymentMethodId $id,
-        AccountId $accountId,
         ProviderId $providerId,
         PaymentMethodType $type,
         string $token,
@@ -44,12 +42,11 @@ final readonly class PaymentMethod
             throw new \InvalidArgumentException('El token del método de pago no puede exceder 255 caracteres.');
         }
 
-        return new self($id, $accountId, $providerId, $type, $token, $detailsMasked, true, $createdAt);
+        return new self($id, $providerId, $type, $token, $detailsMasked, true, $createdAt);
     }
 
     public static function reconstitute(
         PaymentMethodId $id,
-        AccountId $accountId,
         ProviderId $providerId,
         PaymentMethodType $type,
         string $token,
@@ -57,12 +54,7 @@ final readonly class PaymentMethod
         bool $active,
         \DateTimeImmutable $createdAt,
     ): self {
-        return new self($id, $accountId, $providerId, $type, $token, $detailsMasked, $active, $createdAt);
-    }
-
-    public function belongsToAccount(Account $account): bool
-    {
-        return $this->accountId->equals($account->id());
+        return new self($id, $providerId, $type, $token, $detailsMasked, $active, $createdAt);
     }
 
     public function usesProvider(PaymentProvider $provider): bool
@@ -78,11 +70,6 @@ final readonly class PaymentMethod
     public function id(): PaymentMethodId
     {
         return $this->id;
-    }
-
-    public function accountId(): AccountId
-    {
-        return $this->accountId;
     }
 
     public function providerId(): ProviderId
