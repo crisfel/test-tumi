@@ -41,12 +41,12 @@ final class DemoSeeder extends Seeder
 
         $fakepay = PaymentProviderModel::query()->where('code', 'fakepay')->firstOrFail();
         $sandboxpay = PaymentProviderModel::query()->where('code', 'sandboxpay')->firstOrFail();
+        $cash = PaymentProviderModel::query()->where('code', 'cash')->firstOrFail();
 
         PaymentMethodModel::query()->firstOrCreate(
-            ['account_id' => $copAccount->id, 'token' => 'tok_card_visa_4242'],
+            ['provider_id' => $fakepay->id, 'token' => 'tok_card_visa_4242'],
             [
                 'id' => \PayIn\Domain\PaymentMethod\PaymentMethodId::generate()->toString(),
-                'provider_id' => $fakepay->id,
                 'type' => 'card',
                 'details_masked' => '**** 4242',
                 'is_active' => true,
@@ -55,10 +55,9 @@ final class DemoSeeder extends Seeder
         );
 
         PaymentMethodModel::query()->firstOrCreate(
-            ['account_id' => $copAccount->id, 'token' => 'tok_pse_banco_001'],
+            ['provider_id' => $sandboxpay->id, 'token' => 'tok_pse_banco_001'],
             [
                 'id' => \PayIn\Domain\PaymentMethod\PaymentMethodId::generate()->toString(),
-                'provider_id' => $sandboxpay->id,
                 'type' => 'pse',
                 'details_masked' => 'Banco Demo S.A.',
                 'is_active' => true,
@@ -67,12 +66,22 @@ final class DemoSeeder extends Seeder
         );
 
         PaymentMethodModel::query()->firstOrCreate(
-            ['account_id' => $usdAccount->id, 'token' => 'tok_wallet_usr_999'],
+            ['provider_id' => $sandboxpay->id, 'token' => 'tok_wallet_usr_999'],
             [
                 'id' => \PayIn\Domain\PaymentMethod\PaymentMethodId::generate()->toString(),
-                'provider_id' => $sandboxpay->id,
                 'type' => 'wallet',
                 'details_masked' => 'wallet@ana.example',
+                'is_active' => true,
+                'created_at' => now(),
+            ],
+        );
+
+        PaymentMethodModel::query()->firstOrCreate(
+            ['provider_id' => $cash->id, 'token' => 'tok_cash_0001'],
+            [
+                'id' => \PayIn\Domain\PaymentMethod\PaymentMethodId::generate()->toString(),
+                'type' => 'cash',
+                'details_masked' => 'Efectivo',
                 'is_active' => true,
                 'created_at' => now(),
             ],

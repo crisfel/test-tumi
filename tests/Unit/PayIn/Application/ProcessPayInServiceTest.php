@@ -38,12 +38,12 @@ use PayIn\Domain\PayIn\PayInStatus;
 use PayIn\Domain\PayIn\PayInValidator;
 use PayIn\Domain\PayIn\Reference;
 use PayIn\Domain\PaymentMethod\PaymentMethod;
-use PayIn\Domain\PaymentMethod\PaymentMethodId;
 use PayIn\Domain\PaymentMethod\PaymentMethodType;
 use PayIn\Domain\PaymentProvider\PaymentProvider;
 use PayIn\Domain\PaymentProvider\ProviderCode;
 use PayIn\Domain\PaymentProvider\ProviderId;
 use PHPUnit\Framework\TestCase;
+use Tests\Support\PayInFixtures;
 
 final class ProcessPayInServiceTest extends TestCase
 {
@@ -83,16 +83,9 @@ final class ProcessPayInServiceTest extends TestCase
             ProviderCode::fromString('fakepay'),
             'FakePay',
             true,
+            [PaymentMethodType::CARD],
         );
-        $this->method = PaymentMethod::register(
-            PaymentMethodId::generate(),
-            $this->account->id(),
-            $this->provider->id(),
-            PaymentMethodType::CARD,
-            'tok_card_abc123',
-            '**** 4242',
-            new \DateTimeImmutable(self::NOW),
-        );
+        $this->method = PayInFixtures::method($this->provider->id());
 
         $this->clients = \Mockery::mock(ClientRepository::class);
         $this->accounts = \Mockery::mock(AccountRepository::class);
@@ -277,7 +270,6 @@ final class ProcessPayInServiceTest extends TestCase
     {
         $inactive = PaymentMethod::reconstitute(
             $this->method->id(),
-            $this->account->id(),
             $this->provider->id(),
             PaymentMethodType::CARD,
             'tok_card_abc123',

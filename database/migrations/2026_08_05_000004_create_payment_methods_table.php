@@ -11,7 +11,7 @@ return new class () extends Migration {
             $table->uuid('id')->primary();
             $table->uuid('account_id');
             $table->uuid('provider_id');
-            $table->enum('type', ['card', 'bank_transfer', 'wallet', 'pse']);
+            $table->enum('type', ['card', 'bank_transfer', 'wallet', 'pse', 'cash']);
             $table->string('token', 255);
             $table->string('details_masked', 255);
             $table->boolean('is_active')->default(true);

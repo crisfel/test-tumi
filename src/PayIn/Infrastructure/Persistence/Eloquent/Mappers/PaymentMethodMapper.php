@@ -20,7 +20,6 @@ final class PaymentMethodMapper
     {
         $model = new PaymentMethodModel();
         $model->id = $method->id()->toString();
-        $model->account_id = $method->accountId()->toString();
         $model->provider_id = $method->providerId()->toString();
         $model->type = $method->type()->value;
         $model->token = $method->token();
@@ -41,7 +40,6 @@ final class PaymentMethodMapper
 
         return PaymentMethod::reconstitute(
             PaymentMethodId::fromString($model->id),
-            \PayIn\Domain\Account\AccountId::fromString($model->account_id),
             ProviderId::fromString($model->provider_id),
             PaymentMethodType::from($model->type),
             $model->token,

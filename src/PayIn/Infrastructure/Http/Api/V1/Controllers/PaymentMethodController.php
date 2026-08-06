@@ -32,10 +32,11 @@ final readonly class PaymentMethodController
     }
 
     /**
-     * Registra un método de pago en una cuenta.
+     * Registra un método de pago (instrumento independiente).
      *
-     * El proveedor se resuelve por su código y debe estar activo. Un token
-     * no puede registrarse dos veces en la misma cuenta (409).
+     * El método se registra en el proveedor indicado, que debe estar activo
+     * y soportar su tipo (matriz de capacidades). El token es único en el
+     * espacio de tokenización del proveedor (409 si ya existe).
      */
     #[OA\Post(
         path: '/v1/payment-methods',
@@ -56,17 +57,17 @@ final readonly class PaymentMethodController
             ),
             new OA\Response(
                 response: 422,
-                description: 'Datos de entrada inválidos o proveedor inactivo',
+                description: 'Datos inválidos, proveedor inactivo o tipo no soportado por el proveedor',
                 content: new OA\JsonContent(ref: '#/components/schemas/ErrorResponse'),
             ),
             new OA\Response(
                 response: 404,
-                description: 'Cuenta o proveedor inexistente',
+                description: 'Proveedor inexistente',
                 content: new OA\JsonContent(ref: '#/components/schemas/ErrorResponse'),
             ),
             new OA\Response(
                 response: 409,
-                description: 'El token ya está registrado en la cuenta',
+                description: 'El token ya está registrado en el proveedor',
                 content: new OA\JsonContent(ref: '#/components/schemas/ErrorResponse'),
             ),
         ],
@@ -110,14 +111,15 @@ final readonly class PaymentMethodController
     }
 
     /**
-     * Lista los métodos de pago de una cuenta con paginación.
+     * Lista el catálogo global de métodos de pago con filtros y paginación.
      */
     #[OA\Get(
         path: '/v1/payment-methods',
-        summary: 'Listar métodos de pago de una cuenta',
+        summary: 'Listar métodos de pago',
         tags: ['Payment Methods'],
         parameters: [
-            new OA\Parameter(name: 'account_id', in: 'query', required: true, description: 'UUID de la cuenta', schema: new OA\Schema(type: 'string', format: 'uuid', example: '019fd715-ec1a-7a7e-ab6f-f497aa52abe4')),
+            new OA\Parameter(name: 'type', in: 'query', required: false, schema: new OA\Schema(type: 'string', enum: ['card', 'bank_transfer', 'wallet', 'pse', 'cash'])),
+            new OA\Parameter(name: 'provider_code', in: 'query', required: false, description: 'Filtra por proveedor (p. ej. fakepay)', schema: new OA\Schema(type: 'string')),
             new OA\Parameter(name: 'limit', in: 'query', required: false, schema: new OA\Schema(type: 'integer', maximum: 100, default: 20)),
             new OA\Parameter(name: 'offset', in: 'query', required: false, schema: new OA\Schema(type: 'integer', default: 0)),
             new OA\Parameter(name: 'X-Correlation-Id', in: 'header', required: false, description: 'Identificador de correlación para trazabilidad', schema: new OA\Schema(type: 'string')),
@@ -125,12 +127,12 @@ final readonly class PaymentMethodController
         responses: [
             new OA\Response(
                 response: 200,
-                description: 'Página de métodos de pago de la cuenta',
+                description: 'Página de métodos de pago',
                 content: new OA\JsonContent(ref: '#/components/schemas/PaymentMethodPage'),
             ),
             new OA\Response(
                 response: 404,
-                description: 'Cuenta inexistente',
+                description: 'Proveedor inexistente (filtro provider_code)',
                 content: new OA\JsonContent(ref: '#/components/schemas/ErrorResponse'),
             ),
         ],

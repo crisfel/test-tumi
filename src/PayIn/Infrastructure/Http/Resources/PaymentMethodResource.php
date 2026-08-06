@@ -12,7 +12,7 @@ use PayIn\Domain\PaymentMethod\PaymentMethod;
  * Representación pública de un método de pago.
  *
  * El token de cobro NUNCA se expone: sólo se muestra la información
- * enmascarada y los metadatos de la operación.
+ * enmascarada y los metadatos del instrumento.
  */
 final class PaymentMethodResource extends JsonResource
 {
@@ -26,7 +26,6 @@ final class PaymentMethodResource extends JsonResource
 
         return [
             'id' => $method->id()->toString(),
-            'account_id' => $method->accountId()->toString(),
             'provider_id' => $method->providerId()->toString(),
             'type' => $method->type()->value,
             'details_masked' => $method->detailsMasked(),

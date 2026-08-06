@@ -5,16 +5,14 @@ declare(strict_types=1);
 namespace Tests\Unit\PayIn\Domain;
 
 use PayIn\Domain\Account\Account;
-use PayIn\Domain\Account\AccountId;
 use PayIn\Domain\Client\Client;
 use PayIn\Domain\Client\ClientId;
 use PayIn\Domain\Currency;
 use PayIn\Domain\Email;
-use PayIn\Domain\Exceptions\AccountNotBelongingToClientException;
 use PayIn\Domain\Exceptions\CurrencyMismatchException;
 use PayIn\Domain\Exceptions\PayInAmountInvalidException;
 use PayIn\Domain\Exceptions\PaymentMethodInactiveException;
-use PayIn\Domain\Exceptions\PaymentMethodNotBelongingToAccountException;
+use PayIn\Domain\Exceptions\PaymentMethodTypeNotSupportedException;
 use PayIn\Domain\Exceptions\ProviderInactiveException;
 use PayIn\Domain\Money;
 use PayIn\Domain\PayIn\PayIn;
@@ -45,16 +43,16 @@ final class PayInValidatorTest extends TestCase
         $this->validator = new PayInValidator();
         $clientId = ClientId::generate();
         $this->client = Client::register($clientId, 'Ana García', Email::fromString('ana@example.com'));
-        $this->account = Account::open(AccountId::generate(), $clientId, Currency::COP);
+        $this->account = Account::open(\PayIn\Domain\Account\AccountId::generate(), $clientId, Currency::COP);
         $this->provider = PaymentProvider::register(
             ProviderId::generate(),
             ProviderCode::fromString('fakepay'),
             'FakePay',
             true,
+            [PaymentMethodType::CARD],
         );
         $this->method = PaymentMethod::register(
             PaymentMethodId::generate(),
-            $this->account->id(),
             $this->provider->id(),
             PaymentMethodType::CARD,
             'tok_card_abc123',
@@ -63,14 +61,14 @@ final class PayInValidatorTest extends TestCase
         );
     }
 
-    private function payIn(): PayIn
+    private function payIn(?Money $amount = null): PayIn
     {
         return PayIn::create(
             id: TransactionId::generate(),
             clientId: $this->client->id(),
             accountId: $this->account->id(),
             paymentMethodId: $this->method->id(),
-            amount: Money::fromMinorUnits(25000, Currency::COP),
+            amount: $amount ?? Money::fromMinorUnits(25000, Currency::COP),
             fees: Money::zero(Currency::COP),
             reference: null,
             createdAt: new \DateTimeImmutable('2026-01-01'),
@@ -79,91 +77,36 @@ final class PayInValidatorTest extends TestCase
 
     public function test_valid_payin_passes_validation(): void
     {
-        $this->validator->validate($this->payIn(), $this->client, $this->account, $this->method, $this->provider);
+        $this->validator->validate($this->payIn(), $this->account, $this->method, $this->provider);
 
         $this->addToAssertionCount(1);
     }
 
     public function test_rejects_non_positive_amount(): void
     {
-        $payIn = PayIn::create(
-            id: TransactionId::generate(),
-            clientId: $this->client->id(),
-            accountId: $this->account->id(),
-            paymentMethodId: $this->method->id(),
-            amount: Money::zero(Currency::COP),
-            fees: Money::zero(Currency::COP),
-            reference: null,
-            createdAt: new \DateTimeImmutable('2026-01-01'),
-        );
-
         $this->expectException(PayInAmountInvalidException::class);
 
-        $this->validator->validate($payIn, $this->client, $this->account, $this->method, $this->provider);
-    }
-
-    public function test_rejects_account_from_another_client(): void
-    {
-        $foreignAccount = Account::open(AccountId::generate(), ClientId::generate(), Currency::COP);
-        $payIn = PayIn::create(
-            id: TransactionId::generate(),
-            clientId: $this->client->id(),
-            accountId: $foreignAccount->id(),
-            paymentMethodId: $this->method->id(),
-            amount: Money::fromMinorUnits(25000, Currency::COP),
-            fees: Money::zero(Currency::COP),
-            reference: null,
-            createdAt: new \DateTimeImmutable('2026-01-01'),
+        $this->validator->validate(
+            $this->payIn(Money::zero(Currency::COP)),
+            $this->account,
+            $this->method,
+            $this->provider,
         );
-
-        $this->expectException(AccountNotBelongingToClientException::class);
-
-        $this->validator->validate($payIn, $this->client, $foreignAccount, $this->method, $this->provider);
     }
 
-    public function test_rejects_currency_mismatch_with_account(): void
+    public function test_rejects_currency_mismatch_with_destination_account(): void
     {
         $usdAccount = Account::open($this->account->id(), $this->client->id(), Currency::USD);
-        $payIn = PayIn::create(
-            id: TransactionId::generate(),
-            clientId: $this->client->id(),
-            accountId: $usdAccount->id(),
-            paymentMethodId: $this->method->id(),
-            amount: Money::fromMinorUnits(25000, Currency::COP),
-            fees: Money::zero(Currency::COP),
-            reference: null,
-            createdAt: new \DateTimeImmutable('2026-01-01'),
-        );
 
         $this->expectException(CurrencyMismatchException::class);
 
-        $this->validator->validate($payIn, $this->client, $usdAccount, $this->method, $this->provider);
-    }
-
-    public function test_rejects_method_from_another_account(): void
-    {
-        $foreignAccount = Account::open(AccountId::generate(), $this->client->id(), Currency::COP);
-        $payIn = PayIn::create(
-            id: TransactionId::generate(),
-            clientId: $this->client->id(),
-            accountId: $foreignAccount->id(),
-            paymentMethodId: $this->method->id(),
-            amount: Money::fromMinorUnits(25000, Currency::COP),
-            fees: Money::zero(Currency::COP),
-            reference: null,
-            createdAt: new \DateTimeImmutable('2026-01-01'),
-        );
-
-        $this->expectException(PaymentMethodNotBelongingToAccountException::class);
-
-        $this->validator->validate($payIn, $this->client, $foreignAccount, $this->method, $this->provider);
+        $this->validator->validate($this->payIn(), $usdAccount, $this->method, $this->provider);
     }
 
     public function test_rejects_inactive_method(): void
     {
         $inactive = PaymentMethod::reconstitute(
             $this->method->id(),
-            $this->account->id(),
             $this->provider->id(),
             PaymentMethodType::CARD,
             'tok_card_abc123',
@@ -174,7 +117,7 @@ final class PayInValidatorTest extends TestCase
 
         $this->expectException(PaymentMethodInactiveException::class);
 
-        $this->validator->validate($this->payIn(), $this->client, $this->account, $inactive, $this->provider);
+        $this->validator->validate($this->payIn(), $this->account, $inactive, $this->provider);
     }
 
     public function test_rejects_inactive_provider(): void
@@ -184,10 +127,67 @@ final class PayInValidatorTest extends TestCase
             $this->provider->code(),
             'FakePay',
             false,
+            [PaymentMethodType::CARD],
         );
 
         $this->expectException(ProviderInactiveException::class);
 
-        $this->validator->validate($this->payIn(), $this->client, $this->account, $this->method, $inactiveProvider);
+        $this->validator->validate($this->payIn(), $this->account, $this->method, $inactiveProvider);
+    }
+
+    public function test_rejects_method_type_not_supported_by_provider(): void
+    {
+        $cashProvider = PaymentProvider::register(
+            ProviderId::generate(),
+            ProviderCode::fromString('cash'),
+            'Efectivo',
+            true,
+            [PaymentMethodType::CASH],
+        );
+        $cashMethod = PaymentMethod::register(
+            PaymentMethodId::generate(),
+            $cashProvider->id(),
+            PaymentMethodType::CASH,
+            'tok_cash_0001',
+            'Efectivo',
+            new \DateTimeImmutable('2026-01-01'),
+        );
+
+        $this->expectException(PaymentMethodTypeNotSupportedException::class);
+
+        $this->validator->validate(
+            PayIn::create(
+                id: TransactionId::generate(),
+                clientId: $this->client->id(),
+                accountId: $this->account->id(),
+                paymentMethodId: $cashMethod->id(),
+                amount: Money::fromMinorUnits(1000, Currency::COP),
+                fees: Money::zero(Currency::COP),
+                reference: null,
+                createdAt: new \DateTimeImmutable('2026-01-01'),
+            ),
+            $this->account,
+            $cashMethod,
+            $this->provider,
+        );
+    }
+
+    public function test_destination_account_may_belong_to_another_client(): void
+    {
+        $pedroAccount = Account::open(\PayIn\Domain\Account\AccountId::generate(), ClientId::generate(), Currency::COP);
+        $payIn = PayIn::create(
+            id: TransactionId::generate(),
+            clientId: $this->client->id(),
+            accountId: $pedroAccount->id(),
+            paymentMethodId: $this->method->id(),
+            amount: Money::fromMinorUnits(50000, Currency::COP),
+            fees: Money::zero(Currency::COP),
+            reference: null,
+            createdAt: new \DateTimeImmutable('2026-01-01'),
+        );
+
+        $this->validator->validate($payIn, $pedroAccount, $this->method, $this->provider);
+
+        $this->addToAssertionCount(1);
     }
 }

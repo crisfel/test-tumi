@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Tests\Feature\PayIn;
 
+use PayIn\Infrastructure\Persistence\Eloquent\Mappers\AccountMapper;
+use PayIn\Infrastructure\Persistence\Eloquent\Mappers\ClientMapper;
 use PayIn\Infrastructure\Persistence\Eloquent\Models\AccountModel;
+use Tests\Support\PayInFixtures;
 
 final class ProcessPayInApiTest extends PayInApiTestCase
 {
@@ -175,14 +178,65 @@ final class ProcessPayInApiTest extends PayInApiTestCase
             ->assertJsonPath('errors.0.code', 'REFERENCE_ALREADY_USED');
     }
 
-    public function test_returns_422_when_method_belongs_to_another_account(): void
+    public function test_returns_422_when_method_type_is_not_supported_by_provider(): void
     {
+        // Defensa del dominio ante datos inconsistentes: un método PSE sobre
+        // un proveedor que sólo soporta card (el registro lo bloquea, pero
+        // la validación del PayIn también lo protege).
+        $inconsistent = \PayIn\Domain\PaymentMethod\PaymentMethod::register(
+            \PayIn\Domain\PaymentMethod\PaymentMethodId::generate(),
+            $this->provider->id(),
+            \PayIn\Domain\PaymentMethod\PaymentMethodType::PSE,
+            'tok_pse_x_0001',
+            'Banco X',
+            new \DateTimeImmutable('2026-01-01'),
+        );
+        (new \PayIn\Infrastructure\Persistence\Eloquent\Mappers\PaymentMethodMapper())->toModel($inconsistent)->save();
+
         $response = $this->postJson('/api/v1/payins', $this->validPayload([
-            'payment_method_id' => $this->sandboxMethod->id()->toString(),
+            'payment_method_id' => $inconsistent->id()->toString(),
         ]));
 
         $response->assertStatus(422)
-            ->assertJsonPath('errors.0.code', 'PAYMENT_METHOD_NOT_OWNED');
+            ->assertJsonPath('errors.0.code', 'PAYMENT_METHOD_TYPE_NOT_SUPPORTED');
+    }
+
+    public function test_credits_destination_account_of_another_client(): void
+    {
+        // Escenario Ana → Pedro: Ana paga con su método y el saldo de la
+        // cuenta de Pedro aumenta (la cuenta destino no tiene pertenencia).
+        $pedro = PayInFixtures::client(email: 'pedro.perez@example.com');
+        (new ClientMapper())->toModel($pedro)->save();
+        $pedroAccount = PayInFixtures::account($pedro->id());
+        (new AccountMapper())->toModel($pedroAccount)->save();
+
+        $response = $this->postJson('/api/v1/payins', $this->validPayload([
+            'account_id' => $pedroAccount->id()->toString(),
+            'amount' => 50000,
+            'reference' => 'ana-paga-a-pedro-0001',
+        ]));
+
+        $response->assertStatus(201)
+            ->assertJsonPath('data.status', 'processed')
+            ->assertJsonPath('data.account_id', $pedroAccount->id()->toString());
+
+        $this->assertSame(50000, (int) AccountModel::query()->find($pedroAccount->id()->toString())->balance);
+        $this->assertSame(0, (int) AccountModel::query()->find($this->account->id()->toString())->balance);
+    }
+
+    public function test_processes_cash_payin_immediately(): void
+    {
+        $response = $this->postJson('/api/v1/payins', $this->validPayload([
+            'payment_method_id' => $this->cashMethod->id()->toString(),
+            'amount' => 8000,
+            'reference' => 'pago-efectivo-0001',
+        ]));
+
+        $response->assertStatus(201)
+            ->assertJsonPath('data.status', 'processed')
+            ->assertJsonPath('data.error_code', null);
+
+        $this->assertStringStartsWith('CASH-', (string) $response->json('data.provider_transaction_id'));
     }
 
     public function test_returns_422_when_currency_does_not_match_account(): void

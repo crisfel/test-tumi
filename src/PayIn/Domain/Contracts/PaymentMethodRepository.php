@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace PayIn\Domain\Contracts;
 
-use PayIn\Domain\Account\AccountId;
 use PayIn\Domain\PaymentMethod\PaymentMethod;
 use PayIn\Domain\PaymentMethod\PaymentMethodId;
+use PayIn\Domain\PaymentProvider\ProviderId;
 
 /**
  * Puertos de persistencia del dominio (Ports & Adapters).
@@ -17,7 +17,7 @@ interface PaymentMethodRepository
 
     public function save(PaymentMethod $method): void;
 
-    public function existsByAccountAndToken(AccountId $accountId, string $token): bool;
+    public function existsByProviderAndToken(ProviderId $providerId, string $token): bool;
 
     /**
      * @return list<PaymentMethod>

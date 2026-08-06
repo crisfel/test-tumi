@@ -153,10 +153,10 @@ flowchart TD
 erDiagram
     CLIENTS ||--o{ ACCOUNTS : "posee"
     CLIENTS ||--o{ TRANSACTIONS : "origina"
-    ACCOUNTS ||--o{ PAYMENT_METHODS : "registra"
-    ACCOUNTS ||--o{ PAY_INS : "recibe fondos"
-    PAYMENT_PROVIDERS ||--o{ PAYMENT_METHODS : "procesa"
+    ACCOUNTS ||--o{ PAY_INS : "recibe fondos (destino)"
+    PAYMENT_PROVIDERS ||--o{ PAYMENT_METHODS : "tokeniza"
     PAYMENT_PROVIDERS ||--o{ TRANSACTIONS : "ejecuta"
+    PAYMENT_METHODS ||--o{ PAY_INS : "instrumento"
     TRANSACTIONS ||--o| PAY_INS : "es"
 
     CLIENTS {
@@ -178,20 +178,20 @@ erDiagram
 
     PAYMENT_PROVIDERS {
         uuid id PK
-        string code UK "fakepay | sandboxpay"
+        string code UK "fakepay | sandboxpay | cash"
         string name "100"
         boolean is_active
+        json supported_types "matriz de capacidades"
         json configuration
         timestamps created_at
         timestamps updated_at
     }
 
     PAYMENT_METHODS {
-        uuid id PK
-        uuid account_id FK
-        uuid provider_id FK
-        enum type "card | bank_transfer | wallet | pse"
-        string token "255, opaco"
+        uuid id PK "instrumento independiente"
+        uuid provider_id FK "token pertenece al proveedor"
+        enum type "card | bank_transfer | wallet | pse | cash"
+        string token "255, opaco; UK(provider_id, token)"
         string details_masked
         boolean is_active
         timestamps created_at
@@ -201,12 +201,12 @@ erDiagram
     TRANSACTIONS {
         uuid id PK
         enum type "payin"
-        uuid client_id FK
+        uuid client_id FK "quién paga (originador)"
         bigint amount "minor units >= 0"
         char currency "3"
         enum status "created|validated|processing|processed|failed"
         string reference "64, UK nullable (idempotencia)"
-        uuid provider_id FK
+        uuid provider_id FK "proveedor enrutado"
         string provider_transaction_id "64"
         json provider_response
         string error_code "64"
@@ -219,8 +219,8 @@ erDiagram
 
     PAY_INS {
         uuid transaction_id PK "FK -> transactions (cascade)"
-        uuid account_id FK
-        uuid payment_method_id FK
+        uuid account_id FK "cuenta destino (de quien sea)"
+        uuid payment_method_id FK "instrumento usado"
         bigint fees "minor units"
     }
 ```

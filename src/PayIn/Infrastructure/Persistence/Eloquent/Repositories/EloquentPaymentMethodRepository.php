@@ -7,11 +7,11 @@ namespace PayIn\Infrastructure\Persistence\Eloquent\Repositories;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\QueryException;
 use PayIn\Application\Exception\PaymentMethodAlreadyExistsException;
-use PayIn\Domain\Account\AccountId;
 use PayIn\Domain\Contracts\PaymentMethodRepository;
 use PayIn\Domain\Contracts\PaymentMethodSearchCriteria;
 use PayIn\Domain\PaymentMethod\PaymentMethod;
 use PayIn\Domain\PaymentMethod\PaymentMethodId;
+use PayIn\Domain\PaymentProvider\ProviderId;
 use PayIn\Infrastructure\Persistence\Eloquent\Mappers\PaymentMethodMapper;
 use PayIn\Infrastructure\Persistence\Eloquent\Models\PaymentMethodModel;
 
@@ -44,7 +44,7 @@ final readonly class EloquentPaymentMethodRepository implements PaymentMethodRep
             } catch (QueryException $exception) {
                 if ($this->isTokenViolation($exception)) {
                     throw new PaymentMethodAlreadyExistsException(
-                        $method->accountId()->toString(),
+                        $method->providerId()->toString(),
                         $method->token(),
                     );
                 }
@@ -58,10 +58,10 @@ final readonly class EloquentPaymentMethodRepository implements PaymentMethodRep
         ]);
     }
 
-    public function existsByAccountAndToken(AccountId $accountId, string $token): bool
+    public function existsByProviderAndToken(ProviderId $providerId, string $token): bool
     {
         return PaymentMethodModel::query()
-            ->where('account_id', $accountId->toString())
+            ->where('provider_id', $providerId->toString())
             ->where('token', $token)
             ->exists();
     }
@@ -95,7 +95,15 @@ final readonly class EloquentPaymentMethodRepository implements PaymentMethodRep
      */
     private function applyCriteria(Builder $query, PaymentMethodSearchCriteria $criteria): Builder
     {
-        return $query->where('account_id', $criteria->accountId->toString());
+        if ($criteria->type instanceof \PayIn\Domain\PaymentMethod\PaymentMethodType) {
+            $query->where('type', $criteria->type->value);
+        }
+
+        if ($criteria->providerId instanceof \PayIn\Domain\PaymentProvider\ProviderId) {
+            $query->where('provider_id', $criteria->providerId->toString());
+        }
+
+        return $query;
     }
 
     private function isTokenViolation(QueryException $exception): bool

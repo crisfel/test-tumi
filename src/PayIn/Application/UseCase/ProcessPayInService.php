@@ -136,7 +136,7 @@ final readonly class ProcessPayInService
             createdAt: $this->clock->now(),
         );
 
-        $this->validator->validate($payIn, $client, $account, $paymentMethod, $provider);
+        $this->validator->validate($payIn, $account, $paymentMethod, $provider);
 
         $this->payIns->save($payIn);
         $payIn->markValidated();

@@ -27,10 +27,8 @@ final class QueryPaymentMethodServiceTest extends TestCase
     public function test_finds_method_by_id(): void
     {
         $id = PaymentMethodId::generate();
-        $client = PayInFixtures::client();
-        $account = PayInFixtures::account($client->id());
         $provider = PayInFixtures::provider();
-        $method = PayInFixtures::method($account->id(), $provider->id(), id: $id);
+        $method = PayInFixtures::method($provider->id(), id: $id);
         $this->paymentMethods->shouldReceive('findById')->with($id)->andReturn($method);
 
         $this->assertSame($method, (new QueryPaymentMethodService($this->paymentMethods))->findById($id));

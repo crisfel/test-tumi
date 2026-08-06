@@ -33,4 +33,13 @@ final readonly class EloquentPaymentProviderRepository implements PaymentProvide
 
         return $model !== null ? $this->mapper->fromModel($model) : null;
     }
+
+    public function all(): array
+    {
+        return PaymentProviderModel::query()
+            ->orderBy('name')
+            ->get()
+            ->map(fn (PaymentProviderModel $model): PaymentProvider => $this->mapper->fromModel($model))
+            ->all();
+    }
 }

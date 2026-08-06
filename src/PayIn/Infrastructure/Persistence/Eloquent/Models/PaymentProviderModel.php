@@ -29,11 +29,13 @@ final class PaymentProviderModel extends Model
         'code',
         'name',
         'is_active',
+        'supported_types',
         'configuration',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'supported_types' => 'array',
         'configuration' => 'array',
     ];
 

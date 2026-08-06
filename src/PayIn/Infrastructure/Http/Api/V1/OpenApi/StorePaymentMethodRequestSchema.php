@@ -11,12 +11,11 @@ use OpenApi\Attributes as OA;
  */
 #[OA\Schema(
     schema: 'StorePaymentMethodRequest',
-    required: ['account_id', 'provider_code', 'type', 'token', 'details_masked'],
+    required: ['provider_code', 'type', 'token', 'details_masked'],
     properties: [
-        new OA\Property(property: 'account_id', description: 'UUID de la cuenta titular', type: 'string', format: 'uuid', example: '019fd715-ec1a-7a7e-ab6f-f497aa52abe4'),
-        new OA\Property(property: 'provider_code', description: 'Código del proveedor que procesará el cobro', type: 'string', example: 'fakepay'),
-        new OA\Property(property: 'type', description: 'Tipo de método de pago', type: 'string', enum: ['card', 'bank_transfer', 'wallet', 'pse'], example: 'card'),
-        new OA\Property(property: 'token', description: 'Token opaco de cobro (nunca el PAN)', type: 'string', example: 'tok_card_visa_4242'),
+        new OA\Property(property: 'provider_code', description: 'Código del proveedor que tokeniza el método y procesará el cobro', type: 'string', example: 'fakepay'),
+        new OA\Property(property: 'type', description: 'Tipo de método de pago (debe estar en las capacidades del proveedor)', type: 'string', enum: ['card', 'bank_transfer', 'wallet', 'pse', 'cash'], example: 'card'),
+        new OA\Property(property: 'token', description: 'Token opaco de cobro emitido por el proveedor (nunca el PAN)', type: 'string', example: 'tok_card_visa_4242'),
         new OA\Property(property: 'details_masked', description: 'Detalle enmascarado para mostrar al cliente', type: 'string', example: '**** 4242'),
     ],
 )]

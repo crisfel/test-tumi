@@ -43,5 +43,6 @@ return [
     'gateways' => [
         'fakepay' => \PayIn\Infrastructure\PaymentProviders\FakePayProvider::class,
         'sandboxpay' => \PayIn\Infrastructure\PaymentProviders\SandboxPayProvider::class,
+        'cash' => \PayIn\Infrastructure\PaymentProviders\CashGateway::class,
     ],
 ];

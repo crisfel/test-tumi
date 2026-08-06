@@ -77,13 +77,15 @@ Ver [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) para los diagramas de component
 |---|---|
 | **Montos en unidades menores enteras** (`BIGINT` cents) | Evita errores de punto flotante en operaciones financieras; alineado con ISO 4217. El VO `Money` encapsula monto+moneda como indivisibles. |
 | **UUID v7 para identificadores** (`symfony/uid`) | Ordenables cronológicamente → índices B-tree eficientes. IDs tipados por concepto (`ClientId`, `AccountId`, `TransactionId`...) para type-safety en compilación. |
+| **Método de pago = instrumento independiente** | No pertenece a clientes ni cuentas: es un instrumento (tarjeta, PSE, wallet, efectivo). Un PayIn abona a **cualquier** cuenta destino sin validar pertenencia (Ana paga → el saldo de Pedro aumenta). |
+| **Método de pago vinculado a su proveedor (`provider_id`)** | Estándar de industria: el token pertenece a la pasarela que lo tokenizó (el token de Wompi no es cobrable por PayU). El orquestador resuelve el gateway desde el método. |
+| **Matriz de capacidades del proveedor (`supported_types`)** | El proveedor declara qué tipos puede procesar ("FakePay soporta card; SandboxPay soporta card/pse/wallet/bank_transfer; cash soporta cash"). Se valida al registrar el método y en cada PayIn (defensa). |
+| **`cash` como proveedor simulado** | El pago en efectivo no requiere pasarela: `CashGateway` confirma al instante con el mismo contrato `PaymentGateway` — el orquestador permanece uniforme (sin condicionales). |
 | **`transactions` como núcleo financiero reutilizable** | Un futuro `Payout`/`Refund` reutiliza la misma tabla sin tocar el dominio; `pay_ins` guarda solo lo específico (sin duplicación). |
 | **Call al proveedor FUERA de la transacción** | Evita mantener locks de BD mientras el proveedor responde (latencia variable, timeouts). |
 | **Locking optimista (`version` column, compare-and-set)** | El repositorio recuerda la versión cargada del aggregate y falla con `PAYIN_CONCURRENCY_CONFLICT` si otro proceso la modificó. El dominio permanece limpio (la versión es un concepto de persistencia). |
 | **Idempotencia por `reference`** | La unicidad en BD + chequeo de aplicación previenen dobles cobros en reintentos (409 Conflict). |
-| **Proveedores vía Strategy + Registry por contrato** | Agregar un proveedor = nueva clase que implemente `PaymentGateway` + registro en config. **Cero condicionales** (`if provider == ...`). |
-| **Result Pattern para respuestas de proveedores** | `ChargeResult` (Success/Rejected/Timeout/Error) como valores, no excepciones de control de flujo. |
-| **Validación en dos frentes** | HTTP (`FormRequest`) para sintaxis/formatos + **Domain Service** (`PayInValidator`) para invariantes de negocio (pertenencia, moneda, actividad). Los datos inválidos nunca llegan al dominio. |
+| **Validación en dos frentes** | HTTP (`FormRequest`) para sintaxis/formatos + **Domain Service** (`PayInValidator`) para invariantes de negocio (moneda, método activo, proveedor activo, capacidades). Los datos inválidos nunca llegan al dominio. |
 | **Regla `email` del framework NO utilizada** | Las versiones 11.x de Laravel presentan la vulnerabilidad CVE-2026-48019 (inyección CRLF en la regla de email) sin fix publicado; el dominio valida emails con su propio VO. Ver [Riesgos](#13-riesgos-identificados). |
 | **Estado `PROCESSING` agregado** | El enunciado pide estados mínimos `CREATED/VALIDATED/PROCESSED/FAILED`; se agrega `PROCESSING` (operación en vuelo) porque el flujo async/colas lo exige. |
 | **PHPUnit en lugar de Pest** | PHPUnit ya estaba instalado y locked; Pest no aporta valor diferencial suficiente para justificar el cambio de framework de testing. |
@@ -156,7 +158,8 @@ Cada patrón resuelve un problema real; no se incluyeron por demostración:
 ├── config/payin.php                 # Configuración del componente
 ├── config/l5-swagger.php            # Documentación OpenAPI
 ├── database/
-│   ├── migrations/                  # 6 migraciones normalizadas
+│   ├── migrations/                  # Migraciones normalizadas (fuente de verdad)
+│   ├── sql/                         # Scripts SQL de referencia (schema.sql + seed.sql)
 │   └── seeders/                     # PaymentProviderSeeder + DemoSeeder
 ├── docker/                          # Dockerfile multi-stage + nginx + php.ini
 ├── docker-compose.yml               # php-fpm · nginx · mysql:8 · redis
@@ -175,10 +178,10 @@ Cada patrón resuelve un problema real; no se incluyeron por demostración:
 | Aggregate | Estado | Reglas clave |
 |---|---|---|
 | `Client` | id, nombre, email | email validado y normalizado |
-| `Account` | id, clientId, moneda, saldo | saldo en cents; `credit()` sólo en su moneda |
-| `PaymentMethod` | id, accountId, providerId, tipo, token, activo | token opaco (nunca PAN); pertenece a una cuenta |
-| `PaymentProvider` | id, code, nombre, activo, config | catálogo persistido; clave de resolución del Registry |
-| `PayIn` | compone `Transaction` + accountId + paymentMethodId + fees | **máquina de estados**: ver abajo |
+| `Account` | id, clientId, moneda, saldo | saldo en cents; `credit()` sólo en su moneda; destino de fondos de cualquier PayIn (sin pertenencia) |
+| `PaymentMethod` | id, providerId, tipo, token, activo | **instrumento independiente** (sin cliente ni cuenta); token opaco del proveedor (nunca PAN); `UNIQUE(provider_id, token)` |
+| `PaymentProvider` | id, code, nombre, activo, `supported_types` | catálogo persistido con **matriz de capacidades**; clave de resolución del Registry |
+| `PayIn` | compone `Transaction` + accountId (destino) + paymentMethodId + fees | **máquina de estados**: ver abajo |
 
 **Máquina de estados (Patrón State):**
 
@@ -208,9 +211,11 @@ Cada estado declara sus transiciones permitidas en `PayInStatus::transitions()`;
 | `POST` | `/api/v1/accounts` | Abre una cuenta (una por cliente y moneda) |
 | `GET` | `/api/v1/accounts/{id}` | Consulta una cuenta por UUID |
 | `GET` | `/api/v1/accounts?client_id={uuid}` | Lista las cuentas de un cliente (paginado) |
-| `POST` | `/api/v1/payment-methods` | Registra un método de pago (token único por cuenta) |
+| `POST` | `/api/v1/payment-methods` | Registra un método de pago (instrumento, token único por proveedor) |
 | `GET` | `/api/v1/payment-methods/{id}` | Consulta un método de pago por UUID |
-| `GET` | `/api/v1/payment-methods?account_id={uuid}` | Lista los métodos de una cuenta (paginado) |
+| `GET` | `/api/v1/payment-methods` | Lista el catálogo de instrumentos (filtros `type`/`provider_code`) |
+| `GET` | `/api/v1/payment-providers/{id}` | Consulta un proveedor con sus capacidades |
+| `GET` | `/api/v1/payment-providers` | Lista el catálogo de proveedores |
 | `POST` | `/api/v1/payins` | Crea y procesa un PayIn (orquestación completa) |
 | `GET` | `/api/v1/payins/{id}` | Consulta por UUID |
 | `GET` | `/api/v1/payins` | Listado paginado con filtros (`status`, `from`, `to`, `limit`, `offset`) |
@@ -238,13 +243,20 @@ Cada estado declara sus transiciones permitidas en `PayInStatus::transitions()`;
 
 ```json
 {
-  "account_id": "019f0000-0000-7000-8000-000000000002",
   "provider_code": "fakepay",
   "type": "card",
   "token": "tok_card_visa_4242",
   "details_masked": "**** 4242"
 }
 ```
+
+**Catálogo de proveedores sembrado (matriz de capacidades):**
+
+| code | supported_types | gateway |
+|---|---|---|
+| `fakepay` | `card` | FakePayProvider |
+| `sandboxpay` | `card, bank_transfer, wallet, pse` | SandboxPayProvider |
+| `cash` | `cash` | CashGateway (éxito inmediato) |
 
 **Ejemplo de petición:**
 
@@ -321,8 +333,10 @@ docker compose run --rm php php artisan l5-swagger:generate
 | Concepto | Valor |
 |---|---|
 | Cliente | `ana.garcia@example.com` |
-| Cuenta COP + método tarjeta (FakePay) | consultar con `php artisan tinker` o SQL |
-| Cuenta USD + método wallet (SandboxPay) | idem |
+| Cuentas | COP y USD (consultar con `php artisan tinker` o SQL) |
+| Métodos | tarjeta (FakePay), PSE y wallet (SandboxPay), cash (Efectivo) |
+
+> **Scripts SQL de referencia:** `database/sql/schema.sql` (DDL completo MySQL del modelo normalizado) y `database/sql/seed.sql` (catálogo + datos demo) están disponibles como entregable del modelo de datos. Las migraciones Laravel son la fuente de verdad en ejecución; los scripts permiten crear la base desde SQL puro: `mysql -u root -p payin < database/sql/schema.sql && mysql -u root -p payin < database/sql/seed.sql`.
 
 **Comportamiento de los proveedores ficticios** (variables de entorno en `.env`):
 
@@ -336,7 +350,7 @@ PAYIN_SANDBOXPAY_LATENCY_MS=0
 ## 9. Cómo ejecutar pruebas y calidad
 
 ```bash
-# Suite completa de pruebas (136 tests)
+# Suite completa de pruebas (203 tests)
 docker compose run --rm php vendor/bin/phpunit
 
 # Solo una capa
@@ -350,7 +364,20 @@ docker compose run --rm php vendor/bin/phpstan analyse # análisis estático niv
 docker compose run --rm php vendor/bin/rector process --dry-run  # refactorings
 ```
 
-**Cobertura:** Unit (dominio/aplicación/adapters), Repositories (round-trip sobre SQLite en memoria) y Feature (API end-to-end sobre SQLite; en CI se ejecutaría sobre MySQL).
+**Cobertura:** Unit (dominio/aplicación/adapters), Repositories (round-trip sobre SQLite en memoria) y Feature (API end-to-end sobre SQLite). La suite también debe ejecutarse contra MySQL (paridad real con producción).
+
+### Métodos y herramientas de calidad
+
+| Herramienta | Rol | Cómo se aplica |
+|---|---|---|
+| **Laravel Pint** | Estilo de código (PSR-12) | `pint --test` en revisión; `pint` para auto-corregir. Config en `pint.json` (imports ordenados, array corto, sin imports sin uso) |
+| **PHPStan + Larastan** | Análisis estático **nivel máximo (9)** | `phpstan analyse` sobre `src/` y `routes/`. Detecta tipos `mixed` inseguros, genéricos de Eloquent mal tipados y uso de `new static()` sin contrato |
+| **Rector** | Refactorización automática a PHP 8.3 | `rector process --dry-run` en revisión; `rector process` para aplicar (ej.: clases `readonly`) |
+| **PHPUnit 11 + Mockery** | Pruebas unitarias/feature/repositorios | 203 tests, 472 aserciones; Mockery para puertos (repositorios, clock, event bus, gateways) |
+| **Cobertura por capas** | Verificación del alcance | Unit (dominio: VOs, máquina de estados, validador; aplicación: orquestador con mocks; adapters), Repositories (round-trip con SQLite en memoria), Feature (API end-to-end) |
+| **Fixtures compartidos** | Tests deterministas | `PayInFixtures` centraliza aggregates; UUIDs tipados y reloj inyectable |
+
+**Método de trabajo:** TDD en cada capa (rojo → verde → refactor), verificación local completa antes de cada entrega (`phpunit` + `pint --test` + `phpstan` + `rector --dry-run`) y revisión por pares con la documentación de arquitectura como contrato.
 
 ## 10. Cómo agregar un nuevo proveedor
 
@@ -376,14 +403,15 @@ final class NewPayProvider implements PaymentGateway
 ```
 
 ```php
-// 3. Registrar el proveedor en el catálogo (seeder o migración de datos)
+// 3. Registrar el proveedor en el catálogo con su matriz de capacidades
 PaymentProviderModel::query()->updateOrCreate(
     ['code' => 'newpay'],
-    ['id' => ProviderId::generate()->toString(), 'name' => 'NewPay', 'is_active' => true],
+    ['id' => ProviderId::generate()->toString(), 'name' => 'NewPay', 'is_active' => true,
+     'supported_types' => ['card', 'pse']],
 );
 ```
 
-Listo: el orquestador resuelve el adapter automáticamente por el `code` del método de pago. El contrato exige devolver siempre un `ChargeResult` (nunca excepciones de control de flujo) y absorber el formato propio del proveedor dentro del adapter.
+Listo: el orquestador resuelve el adapter automáticamente por el `provider_id` del método de pago. El contrato exige devolver siempre un `ChargeResult` (nunca excepciones de control de flujo) y absorber el formato propio del proveedor dentro del adapter.
 
 ## 11. Cómo agregar un nuevo método de pago
 
@@ -393,12 +421,14 @@ enum PaymentMethodType: string { case CARD = 'card'; /* ... */ case NEW_TYPE = '
 ```
 
 ```php
-// 2. Migración: ampliar el CHECK/ENUM de payment_methods.type
-// 3. Crear el método de pago (vía seeder o flujo de registro futuro)
-PaymentMethodModel::query()->create([...'type' => 'new_type', 'token' => 'tok_...', ...]);
+// 2. Ampliar el ENUM/CHECK de payment_methods.type (MySQL) y declarar el
+//    tipo en las capacidades de los proveedores que lo procesen:
+//    payment_providers.supported_types = [... 'new_type']
+// 3. Crear métodos de pago con ese tipo (el registro valida que el
+//    proveedor lo soporte)
 ```
 
-El dominio, el orquestador y los proveedores no requieren cambios: el adapter decide cómo cobrar según el tipo.
+El dominio, el orquestador y los adapters no requieren cambios: el proveedor decide cómo cobrar según el tipo que declara soportar.
 
 ## 12. Seguridad
 
@@ -415,21 +445,24 @@ El dominio, el orquestador y los proveedores no requieren cambios: el adapter de
 
 | Riesgo | Mitigación / estado |
 |---|---|
+| **Instrumentos sin vínculo de pertenencia** | El método de pago no pertenece a un cliente: cualquier cliente puede usar cualquier método registrado (decisión alineada al enunciado: "asociada a un cliente y a un método de pago"). En producción se mitiga con tokenización real (el token se vincula al titular) y políticas de uso por cliente. |
+| **Desincronización config ↔ catálogo de capacidades** | `supported_types` vive en el catálogo (BD); si un proveedor se marca inactivo o pierde capacidades con métodos ya registrados, el PayIn lo rechaza con 422 (defensa en dominio). Los cambios de catálogo deben migrarse/versionarse. |
 | **Advisories de seguridad en Laravel 11.x** (signed URLs, CRLF en regla `email` — fix solo en 12.x) | No se usan URLs firmadas ni la regla `email`; `composer.json` documenta los IDs ignorados (`PKSA-m5cs-t1y6-qpcs`, `PKSA-3r5d-mb8f-1qw9`, `PKSA-mdq4-51ck-6kdq`). **Se recomienda planificar la migración a Laravel 12+ cuando el negocio lo permita.** |
 | **Dual-write entre proveedor y BD** (el proveedor cobra, la BD falla) | El PayIn queda persistido en `VALIDATED` (nunca inconsistente). Mitigación completa: patrón Outbox + reconciliación (ver mejoras). |
 | **Concurrencia sobre el saldo de la cuenta** | El abono ocurre en transacción aislada; para alta concurrencia se documenta `SELECT ... FOR UPDATE` o colas serializadas. |
-| **SQLite en tests vs MySQL en producción** | CI debe ejecutar la suite con MySQL (paridad real); local usa SQLite por velocidad. |
+| **SQLite en tests vs MySQL en producción** | La suite se ejecuta sobre SQLite en memoria local (velocidad) y también debe ejecutarse contra MySQL (paridad real) antes de cada entrega. |
 | **Timeout del proveedor → FAILED definitivo** | Diseño v1: el cliente reintenta con nueva referencia. Evolución: cola de reintentos con backoff + webhooks. |
 | **`PROCESSING` sin persistencia intermedia** | La transición intermedia se registra en memoria y el estado final se persiste; una reconciliación futura detectaría `VALIDATED` huérfanos. |
 
 ## 14. Suposiciones realizadas
 
 - Sin autenticación en la API (el enunciado no la exige; evolución documentada: Sanctum/OAuth2).
-- Proveedores ficticios (FakePay, SandboxPay) con comportamiento configurable; sin integraciones reales.
+- Proveedores ficticios (FakePay, SandboxPay, Cash) con comportamiento configurable; sin integraciones reales.
 - Monedas soportadas: `COP, USD, EUR, MXN` (enum extensible).
 - Montos en unidades menores enteras (cents) con exponente 2.
 - Comisiones (`fees`) siempre en cero en v1 (el VO y el esquema ya lo soportan).
-- El cliente, la cuenta y el método de pago ya existen (creación de clientes fuera de alcance).
+- Los métodos de pago son **instrumentos independientes**: no pertenecen a clientes ni cuentas; el token es emitido por el proveedor que lo procesará (estándar de industria).
+- La cuenta destino de un PayIn puede pertenecer a cualquier cliente (sin validación de pertenencia).
 - Documentación en español.
 
 ## 15. Posibles mejoras futuras
@@ -441,7 +474,6 @@ El dominio, el orquestador y los proveedores no requieren cambios: el adapter de
 - **CQRS** (separar lectura/escritura; materializar vistas de consulta).
 - **Multitenancy** y gestión de clientes/onboarding.
 - **Estrategia de pagos por método**: PSE requiere redirección (flujo async obligatorio).
-- **CI/CD completo** (GitHub Actions: Pint, PHPStan nivel 9, Rector, PHPUnit sobre MySQL, build Docker) — pendiente por decisión de alcance.
 - **Telemetría** (OpenTelemetry) y paneles de observabilidad.
 - **Migración de Laravel 11 → 12** para resolver los advisories de seguridad.
 

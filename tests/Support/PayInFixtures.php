@@ -44,28 +44,31 @@ final class PayInFixtures
         return Account::open($id ?? AccountId::generate(), $clientId, $currency);
     }
 
-    public static function provider(?ProviderId $id = null, bool $active = true): PaymentProvider
-    {
+    public static function provider(
+        ?ProviderId $id = null,
+        bool $active = true,
+        array $supportedTypes = [PaymentMethodType::CARD],
+    ): PaymentProvider {
         return PaymentProvider::register(
             $id ?? ProviderId::generate(),
             ProviderCode::fromString('fakepay'),
             'FakePay',
             $active,
+            $supportedTypes,
         );
     }
 
     public static function method(
-        AccountId $accountId,
         ProviderId $providerId,
         ?PaymentMethodId $id = null,
         bool $active = true,
         string $token = 'tok_card_abc123',
+        PaymentMethodType $type = PaymentMethodType::CARD,
     ): PaymentMethod {
         return PaymentMethod::reconstitute(
             $id ?? PaymentMethodId::generate(),
-            $accountId,
             $providerId,
-            PaymentMethodType::CARD,
+            $type,
             $token,
             '**** 4242',
             $active,

@@ -16,4 +16,9 @@ interface PaymentProviderRepository
     public function findById(ProviderId $id): ?PaymentProvider;
 
     public function findByCode(ProviderCode $code): ?PaymentProvider;
+
+    /**
+     * @return list<PaymentProvider>
+     */
+    public function all(): array;
 }

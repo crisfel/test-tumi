@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\PayIn;
 
 use PayIn\Domain\PaymentMethod\PaymentMethodId;
+use PayIn\Domain\PaymentMethod\PaymentMethodType;
 use PayIn\Infrastructure\Persistence\Eloquent\Mappers\PaymentMethodMapper;
 use PayIn\Infrastructure\Persistence\Eloquent\Repositories\EloquentPaymentMethodRepository;
 use Tests\Support\PayInFixtures;
@@ -26,6 +27,7 @@ final class QueryPaymentMethodApiTest extends PayInApiTestCase
 
         $response->assertStatus(200)
             ->assertJsonPath('data.id', $this->method->id()->toString())
+            ->assertJsonPath('data.provider_id', $this->provider->id()->toString())
             ->assertJsonPath('data.type', 'card')
             ->assertJsonPath('data.details_masked', '**** 4242')
             ->assertJsonPath('data.is_active', true);
@@ -39,43 +41,57 @@ final class QueryPaymentMethodApiTest extends PayInApiTestCase
             ->assertJsonPath('errors.0.code', 'PAYMENT_METHOD_NOT_FOUND');
     }
 
-    public function test_lists_methods_of_account_with_pagination(): void
+    public function test_lists_all_methods_with_pagination(): void
     {
-        $otherClient = PayInFixtures::client(email: 'metodos.cliente@example.com');
-        (new \PayIn\Infrastructure\Persistence\Eloquent\Mappers\ClientMapper())->toModel($otherClient)->save();
-        $otherAccount = PayInFixtures::account($otherClient->id(), \PayIn\Domain\Currency::USD);
-        (new \PayIn\Infrastructure\Persistence\Eloquent\Mappers\AccountMapper())->toModel($otherAccount)->save();
-
         for ($i = 0; $i < 3; $i++) {
             $method = PayInFixtures::method(
-                $otherAccount->id(),
                 $this->sandboxProvider->id(),
                 token: 'tok_wallet_' . $i . '_' . uniqid(),
+                type: PaymentMethodType::WALLET,
             );
             $this->repository->save($method);
         }
 
-        $response = $this->getJson('/api/v1/payment-methods?account_id=' . $otherAccount->id()->toString() . '&limit=2&offset=0');
+        $response = $this->getJson('/api/v1/payment-methods?limit=2&offset=0');
 
         $response->assertStatus(200)
-            ->assertJsonPath('meta.total', 3)
+            ->assertJsonPath('meta.total', 6) // 3 del setUp + 3 creados
             ->assertJsonPath('meta.limit', 2)
             ->assertJsonPath('meta.offset', 0);
         $this->assertCount(2, $response->json('data'));
     }
 
-    public function test_lists_methods_requires_account_id(): void
+    public function test_lists_methods_filtered_by_type(): void
     {
-        $response = $this->getJson('/api/v1/payment-methods');
+        $response = $this->getJson('/api/v1/payment-methods?type=cash');
 
-        $response->assertStatus(422);
+        $response->assertStatus(200);
+        $this->assertCount(1, $response->json('data'));
+        $this->assertSame('cash', $response->json('data.0.type'));
     }
 
-    public function test_lists_methods_returns_404_when_account_does_not_exist(): void
+    public function test_lists_methods_filtered_by_provider_code(): void
     {
-        $response = $this->getJson('/api/v1/payment-methods?account_id=' . \PayIn\Domain\Account\AccountId::generate()->toString());
+        $response = $this->getJson('/api/v1/payment-methods?provider_code=sandboxpay');
+
+        $response->assertStatus(200);
+        foreach ($response->json('data') as $method) {
+            $this->assertSame($this->sandboxProvider->id()->toString(), $method['provider_id']);
+        }
+    }
+
+    public function test_lists_methods_returns_404_for_unknown_provider(): void
+    {
+        $response = $this->getJson('/api/v1/payment-methods?provider_code=noprovider');
 
         $response->assertStatus(404)
-            ->assertJsonPath('errors.0.code', 'ACCOUNT_NOT_FOUND');
+            ->assertJsonPath('errors.0.code', 'PROVIDER_NOT_FOUND');
+    }
+
+    public function test_lists_methods_rejects_unknown_type(): void
+    {
+        $response = $this->getJson('/api/v1/payment-methods?type=cheque');
+
+        $response->assertStatus(422);
     }
 }

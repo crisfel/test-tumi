@@ -9,10 +9,12 @@ use PayIn\Domain\PaymentProvider\ProviderId;
 use PayIn\Infrastructure\Persistence\Eloquent\Models\PaymentProviderModel;
 
 /**
- * Siembra el catálogo de proveedores de pago disponibles en la plataforma.
+ * Siembra el catálogo de proveedores de pago con su matriz de capacidades
+ * (tipos de método que cada pasarela puede procesar).
  *
- * Agregar un proveedor nuevo: crear su adapter y añadir su registro aquí
- * (o en una migración de datos). Ningún código de dominio cambia.
+ * Agregar un proveedor nuevo: crear su adapter, registrarlo aquí (o en una
+ * migración de datos) y declarar sus supported_types. Ningún código de
+ * dominio cambia.
  */
 final class PaymentProviderSeeder extends Seeder
 {
@@ -23,11 +25,19 @@ final class PaymentProviderSeeder extends Seeder
                 'code' => 'fakepay',
                 'name' => 'FakePay',
                 'is_active' => true,
+                'supported_types' => ['card'],
             ],
             [
                 'code' => 'sandboxpay',
                 'name' => 'SandboxPay',
                 'is_active' => true,
+                'supported_types' => ['card', 'bank_transfer', 'wallet', 'pse'],
+            ],
+            [
+                'code' => 'cash',
+                'name' => 'Efectivo',
+                'is_active' => true,
+                'supported_types' => ['cash'],
             ],
         ];
 
@@ -47,6 +57,7 @@ final class PaymentProviderSeeder extends Seeder
             $existing->update([
                 'name' => $provider['name'],
                 'is_active' => $provider['is_active'],
+                'supported_types' => $provider['supported_types'],
                 'configuration' => [],
             ]);
         }

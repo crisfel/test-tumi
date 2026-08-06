@@ -19,4 +19,6 @@ enum PaymentMethodType: string
     case WALLET = 'wallet';
 
     case PSE = 'pse';
+
+    case CASH = 'cash';
 }

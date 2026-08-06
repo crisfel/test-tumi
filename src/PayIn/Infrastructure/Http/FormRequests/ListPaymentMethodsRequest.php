@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace PayIn\Infrastructure\Http\FormRequests;
 
 use Illuminate\Foundation\Http\FormRequest;
-use PayIn\Domain\Account\AccountId;
+use Illuminate\Validation\Rule;
 use PayIn\Domain\Contracts\PaymentMethodSearchCriteria;
+use PayIn\Domain\PaymentMethod\PaymentMethodType;
+use PayIn\Domain\PaymentProvider\ProviderCode;
 
 /**
  * Validación de filtros del endpoint GET /api/v1/payment-methods.
@@ -24,27 +26,20 @@ final class ListPaymentMethodsRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'account_id' => ['required', 'string', 'uuid'],
+            'type' => ['nullable', 'string', Rule::enum(PaymentMethodType::class)],
+            'provider_code' => ['nullable', 'string', 'regex:/^[a-z][a-z0-9_]{1,31}$/'],
             'limit' => ['nullable', 'integer', 'min:1', 'max:100'],
             'offset' => ['nullable', 'integer', 'min:0'],
-        ];
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    public function messages(): array
-    {
-        return [
-            'account_id.required' => 'El parámetro account_id es obligatorio.',
-            'account_id.uuid' => 'El parámetro account_id debe ser un UUID válido.',
         ];
     }
 
     public function toCriteria(): PaymentMethodSearchCriteria
     {
         return new PaymentMethodSearchCriteria(
-            accountId: AccountId::fromString($this->string('account_id')->toString()),
+            type: $this->filled('type') ? PaymentMethodType::from($this->string('type')->toString()) : null,
+            providerCode: $this->filled('provider_code')
+                ? ProviderCode::fromString($this->string('provider_code')->toString())
+                : null,
             limit: $this->integer('limit', PaymentMethodSearchCriteria::DEFAULT_LIMIT),
             offset: $this->integer('offset'),
         );

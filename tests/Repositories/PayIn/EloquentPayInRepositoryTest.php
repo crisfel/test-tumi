@@ -55,7 +55,7 @@ final class EloquentPayInRepositoryTest extends RepositoryTestCase
         $this->provider = PayInFixtures::provider();
         (new PaymentProviderMapper())->toModel($this->provider)->save();
 
-        $this->method = PayInFixtures::method($this->account->id(), $this->provider->id());
+        $this->method = PayInFixtures::method($this->provider->id());
         (new PaymentMethodMapper())->toModel($this->method)->save();
     }
 

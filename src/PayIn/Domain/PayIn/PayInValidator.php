@@ -5,13 +5,10 @@ declare(strict_types=1);
 namespace PayIn\Domain\PayIn;
 
 use PayIn\Domain\Account\Account;
-use PayIn\Domain\Client\Client;
-use PayIn\Domain\Exceptions\AccountNotBelongingToClientException;
 use PayIn\Domain\Exceptions\CurrencyMismatchException;
 use PayIn\Domain\Exceptions\PayInAmountInvalidException;
 use PayIn\Domain\Exceptions\PaymentMethodInactiveException;
-use PayIn\Domain\Exceptions\PaymentMethodNotBelongingToAccountException;
-use PayIn\Domain\Exceptions\PaymentMethodProviderMismatchException;
+use PayIn\Domain\Exceptions\PaymentMethodTypeNotSupportedException;
 use PayIn\Domain\Exceptions\ProviderInactiveException;
 use PayIn\Domain\PaymentMethod\PaymentMethod;
 use PayIn\Domain\PaymentProvider\PaymentProvider;
@@ -20,15 +17,15 @@ use PayIn\Domain\PaymentProvider\PaymentProvider;
  * Domain Service: valida la elegibilidad de un PayIn antes de su
  * procesamiento.
  *
- * Encapsula las invariantes de negocio que cruzan varios aggregates. Al
- * invocarse antes de la persistencia, los errores se traducen directamente
- * en respuestas 4xx sin dejar operaciones huérfanas.
+ * Encapsula las invariantes de negocio. La cuenta destino y el método de
+ * pago son INDEPENDIENTES de pertenencias: el PayIn abona a cualquier
+ * cuenta (de quien sea) usando cualquier método registrado y activo, cuyo
+ * proveedor esté activo y soporte el tipo del método.
  */
 final class PayInValidator
 {
     public function validate(
         PayIn $payIn,
-        Client $client,
         Account $account,
         PaymentMethod $paymentMethod,
         PaymentProvider $provider,
@@ -41,28 +38,23 @@ final class PayInValidator
             throw new CurrencyMismatchException($account->currency(), $payIn->fees()->currency());
         }
 
-        if (!$account->belongsToClient($client)) {
-            throw new AccountNotBelongingToClientException($payIn->id()->toString());
-        }
-
         if (!$account->currencyMatches($payIn->amount())) {
             throw new CurrencyMismatchException($account->currency(), $payIn->amount()->currency());
-        }
-
-        if (!$paymentMethod->belongsToAccount($account)) {
-            throw new PaymentMethodNotBelongingToAccountException($payIn->id()->toString());
         }
 
         if (!$paymentMethod->isActive()) {
             throw new PaymentMethodInactiveException($payIn->id()->toString());
         }
 
-        if (!$paymentMethod->usesProvider($provider)) {
-            throw new PaymentMethodProviderMismatchException($payIn->id()->toString());
-        }
-
         if (!$provider->isActive()) {
             throw new ProviderInactiveException($provider->code()->value(), $payIn->id()->toString());
+        }
+
+        if (!$provider->supports($paymentMethod->type())) {
+            throw new PaymentMethodTypeNotSupportedException(
+                $paymentMethod->type()->value,
+                $provider->code()->value(),
+            );
         }
     }
 }

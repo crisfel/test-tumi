@@ -15,7 +15,6 @@ final class StorePaymentMethodApiTest extends PayInApiTestCase
     public function test_registers_a_payment_method_successfully(): void
     {
         $response = $this->postJson('/api/v1/payment-methods', [
-            'account_id' => $this->account->id()->toString(),
             'provider_code' => 'fakepay',
             'type' => 'card',
             'token' => 'tok_card_master_5555',
@@ -23,8 +22,7 @@ final class StorePaymentMethodApiTest extends PayInApiTestCase
         ]);
 
         $response->assertStatus(201)
-            ->assertJsonStructure(['data' => ['id', 'account_id', 'provider_id', 'type', 'details_masked', 'is_active', 'created_at']])
-            ->assertJsonPath('data.account_id', $this->account->id()->toString())
+            ->assertJsonStructure(['data' => ['id', 'provider_id', 'type', 'details_masked', 'is_active', 'created_at']])
             ->assertJsonPath('data.provider_id', $this->provider->id()->toString())
             ->assertJsonPath('data.type', 'card')
             ->assertJsonPath('data.details_masked', '**** 5555')
@@ -32,6 +30,7 @@ final class StorePaymentMethodApiTest extends PayInApiTestCase
 
         $this->assertDatabaseHas('payment_methods', [
             'id' => $response->json('data.id'),
+            'provider_id' => $this->provider->id()->toString(),
             'token' => 'tok_card_master_5555',
         ]);
     }
@@ -39,7 +38,6 @@ final class StorePaymentMethodApiTest extends PayInApiTestCase
     public function test_token_is_never_exposed_in_response(): void
     {
         $response = $this->postJson('/api/v1/payment-methods', [
-            'account_id' => $this->account->id()->toString(),
             'provider_code' => 'fakepay',
             'type' => 'card',
             'token' => 'tok_secret_token_9999',
@@ -50,10 +48,9 @@ final class StorePaymentMethodApiTest extends PayInApiTestCase
         $this->assertStringNotContainsString('tok_secret_token_9999', $response->getContent());
     }
 
-    public function test_returns_409_when_token_already_exists_in_account(): void
+    public function test_returns_409_when_token_already_exists_in_provider(): void
     {
         $this->postJson('/api/v1/payment-methods', [
-            'account_id' => $this->account->id()->toString(),
             'provider_code' => 'fakepay',
             'type' => 'card',
             'token' => 'tok_card_visa_4242',
@@ -61,7 +58,6 @@ final class StorePaymentMethodApiTest extends PayInApiTestCase
         ])->assertStatus(201);
 
         $response = $this->postJson('/api/v1/payment-methods', [
-            'account_id' => $this->account->id()->toString(),
             'provider_code' => 'fakepay',
             'type' => 'card',
             'token' => 'tok_card_visa_4242',
@@ -72,17 +68,33 @@ final class StorePaymentMethodApiTest extends PayInApiTestCase
             ->assertJsonPath('errors.0.code', 'PAYMENT_METHOD_ALREADY_EXISTS');
     }
 
+    public function test_same_token_is_allowed_in_another_provider(): void
+    {
+        $this->postJson('/api/v1/payment-methods', [
+            'provider_code' => 'fakepay',
+            'type' => 'card',
+            'token' => 'tok_compartido_0001',
+            'details_masked' => '**** 0001',
+        ])->assertStatus(201);
+
+        $this->postJson('/api/v1/payment-methods', [
+            'provider_code' => 'sandboxpay',
+            'type' => 'card',
+            'token' => 'tok_compartido_0001',
+            'details_masked' => '**** 0001',
+        ])->assertStatus(201);
+    }
+
     public function test_returns_409_on_race_condition_via_database_unique(): void
     {
-        // El setUp ya registró tok_card_abc123 en la cuenta; el UNIQUE
-        // (account_id, token) de BD debe traducirse a la excepción.
+        // El setUp ya registró tok_card_abc123 en fakepay; el UNIQUE
+        // (provider_id, token) de BD debe traducirse a la excepción.
         $repository = new EloquentPaymentMethodRepository(new PaymentMethodMapper());
 
         $this->expectException(PaymentMethodAlreadyExistsException::class);
 
         $duplicate = \PayIn\Domain\PaymentMethod\PaymentMethod::reconstitute(
             PaymentMethodId::generate(),
-            $this->account->id(),
             $this->provider->id(),
             PaymentMethodType::CARD,
             'tok_card_abc123',
@@ -94,24 +106,9 @@ final class StorePaymentMethodApiTest extends PayInApiTestCase
         $repository->save($duplicate);
     }
 
-    public function test_returns_404_when_account_does_not_exist(): void
-    {
-        $response = $this->postJson('/api/v1/payment-methods', [
-            'account_id' => \PayIn\Domain\Account\AccountId::generate()->toString(),
-            'provider_code' => 'fakepay',
-            'type' => 'card',
-            'token' => 'tok_card_x_0001',
-            'details_masked' => '**** 0001',
-        ]);
-
-        $response->assertStatus(404)
-            ->assertJsonPath('errors.0.code', 'ACCOUNT_NOT_FOUND');
-    }
-
     public function test_returns_404_when_provider_does_not_exist(): void
     {
         $response = $this->postJson('/api/v1/payment-methods', [
-            'account_id' => $this->account->id()->toString(),
             'provider_code' => 'noprovider',
             'type' => 'card',
             'token' => 'tok_card_x_0002',
@@ -129,7 +126,6 @@ final class StorePaymentMethodApiTest extends PayInApiTestCase
             ->update(['is_active' => false]);
 
         $response = $this->postJson('/api/v1/payment-methods', [
-            'account_id' => $this->account->id()->toString(),
             'provider_code' => 'fakepay',
             'type' => 'card',
             'token' => 'tok_card_x_0003',
@@ -140,14 +136,40 @@ final class StorePaymentMethodApiTest extends PayInApiTestCase
             ->assertJsonPath('errors.0.code', 'PROVIDER_INACTIVE');
     }
 
+    public function test_returns_422_when_provider_does_not_support_type(): void
+    {
+        $response = $this->postJson('/api/v1/payment-methods', [
+            'provider_code' => 'cash',
+            'type' => 'card',
+            'token' => 'tok_card_x_0004',
+            'details_masked' => '**** 0004',
+        ]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('errors.0.code', 'PAYMENT_METHOD_TYPE_NOT_SUPPORTED');
+    }
+
+    public function test_registers_cash_method_in_cash_provider(): void
+    {
+        $response = $this->postJson('/api/v1/payment-methods', [
+            'provider_code' => 'cash',
+            'type' => 'cash',
+            'token' => 'tok_cash_x_0001',
+            'details_masked' => 'Efectivo',
+        ]);
+
+        $response->assertStatus(201)
+            ->assertJsonPath('data.type', 'cash')
+            ->assertJsonPath('data.provider_id', $this->cashProvider->id()->toString());
+    }
+
     public function test_rejects_invalid_type(): void
     {
         $response = $this->postJson('/api/v1/payment-methods', [
-            'account_id' => $this->account->id()->toString(),
             'provider_code' => 'fakepay',
             'type' => 'cheque',
-            'token' => 'tok_card_x_0004',
-            'details_masked' => '**** 0004',
+            'token' => 'tok_card_x_0005',
+            'details_masked' => '**** 0005',
         ]);
 
         $response->assertStatus(422);
@@ -156,11 +178,10 @@ final class StorePaymentMethodApiTest extends PayInApiTestCase
     public function test_rejects_invalid_provider_code(): void
     {
         $response = $this->postJson('/api/v1/payment-methods', [
-            'account_id' => $this->account->id()->toString(),
             'provider_code' => 'FAKEPAY',
             'type' => 'card',
-            'token' => 'tok_card_x_0005',
-            'details_masked' => '**** 0005',
+            'token' => 'tok_card_x_0006',
+            'details_masked' => '**** 0006',
         ]);
 
         $response->assertStatus(422);
@@ -169,11 +190,10 @@ final class StorePaymentMethodApiTest extends PayInApiTestCase
     public function test_rejects_short_token(): void
     {
         $response = $this->postJson('/api/v1/payment-methods', [
-            'account_id' => $this->account->id()->toString(),
             'provider_code' => 'fakepay',
             'type' => 'card',
             'token' => 'abc',
-            'details_masked' => '**** 0006',
+            'details_masked' => '**** 0007',
         ]);
 
         $response->assertStatus(422);

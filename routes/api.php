@@ -7,6 +7,7 @@ use PayIn\Infrastructure\Http\Api\V1\Controllers\AccountController;
 use PayIn\Infrastructure\Http\Api\V1\Controllers\ClientController;
 use PayIn\Infrastructure\Http\Api\V1\Controllers\PayInController;
 use PayIn\Infrastructure\Http\Api\V1\Controllers\PaymentMethodController;
+use PayIn\Infrastructure\Http\Api\V1\Controllers\PaymentProviderController;
 
 Route::prefix('v1')
     ->middleware('payin.json')
@@ -36,6 +37,13 @@ Route::prefix('v1')
 
         Route::get('/payment-methods', [PaymentMethodController::class, 'index'])
             ->name('payment-methods.index');
+
+        Route::get('/payment-providers/{id}', [PaymentProviderController::class, 'show'])
+            ->name('payment-providers.show')
+            ->whereUuid('id');
+
+        Route::get('/payment-providers', [PaymentProviderController::class, 'index'])
+            ->name('payment-providers.index');
 
         Route::post('/payins', [PayInController::class, 'store'])
             ->name('payins.store')

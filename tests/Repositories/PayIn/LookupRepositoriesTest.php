@@ -88,7 +88,7 @@ final class LookupRepositoriesTest extends RepositoryTestCase
         $provider = PayInFixtures::provider();
         (new PaymentProviderMapper())->toModel($provider)->save();
 
-        $method = PayInFixtures::method($account->id(), $provider->id());
+        $method = PayInFixtures::method($provider->id());
         (new PaymentMethodMapper())->toModel($method)->save();
 
         $reloaded = (new EloquentPaymentMethodRepository(new PaymentMethodMapper()))->findById($method->id());

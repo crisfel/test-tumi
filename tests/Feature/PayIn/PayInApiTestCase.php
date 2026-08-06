@@ -8,6 +8,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use PayIn\Domain\Account\Account;
 use PayIn\Domain\Client\Client;
 use PayIn\Domain\PaymentMethod\PaymentMethod;
+use PayIn\Domain\PaymentMethod\PaymentMethodType;
 use PayIn\Domain\PaymentProvider\PaymentProvider;
 use PayIn\Infrastructure\Persistence\Eloquent\Mappers\AccountMapper;
 use PayIn\Infrastructure\Persistence\Eloquent\Mappers\ClientMapper;
@@ -30,9 +31,13 @@ abstract class PayInApiTestCase extends TestCase
 
     protected PaymentMethod $sandboxMethod;
 
+    protected PaymentMethod $cashMethod;
+
     protected PaymentProvider $provider;
 
     protected PaymentProvider $sandboxProvider;
+
+    protected PaymentProvider $cashProvider;
 
     protected function setUp(): void
     {
@@ -55,14 +60,35 @@ abstract class PayInApiTestCase extends TestCase
             \PayIn\Domain\PaymentProvider\ProviderCode::fromString('sandboxpay'),
             'SandboxPay',
             true,
+            [PaymentMethodType::CARD, PaymentMethodType::BANK_TRANSFER, PaymentMethodType::WALLET, PaymentMethodType::PSE],
         );
         (new PaymentProviderMapper())->toModel($this->sandboxProvider)->save();
 
-        $this->method = PayInFixtures::method($this->account->id(), $this->provider->id());
+        $this->cashProvider = \PayIn\Domain\PaymentProvider\PaymentProvider::register(
+            \PayIn\Domain\PaymentProvider\ProviderId::generate(),
+            \PayIn\Domain\PaymentProvider\ProviderCode::fromString('cash'),
+            'Efectivo',
+            true,
+            [PaymentMethodType::CASH],
+        );
+        (new PaymentProviderMapper())->toModel($this->cashProvider)->save();
+
+        $this->method = PayInFixtures::method($this->provider->id());
         (new PaymentMethodMapper())->toModel($this->method)->save();
 
-        $this->sandboxMethod = PayInFixtures::method($this->usdAccount->id(), $this->sandboxProvider->id());
+        $this->sandboxMethod = PayInFixtures::method(
+            $this->sandboxProvider->id(),
+            token: 'tok_wallet_usr_999',
+            type: PaymentMethodType::WALLET,
+        );
         (new PaymentMethodMapper())->toModel($this->sandboxMethod)->save();
+
+        $this->cashMethod = PayInFixtures::method(
+            $this->cashProvider->id(),
+            token: 'tok_cash_0001',
+            type: PaymentMethodType::CASH,
+        );
+        (new PaymentMethodMapper())->toModel($this->cashMethod)->save();
     }
 
     /**

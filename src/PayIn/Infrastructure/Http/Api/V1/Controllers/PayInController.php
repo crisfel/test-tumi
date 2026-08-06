@@ -28,6 +28,7 @@ use PayIn\Infrastructure\Http\Resources\PayInResource;
 #[OA\Tag(name: 'Clients', description: 'Operaciones de clientes')]
 #[OA\Tag(name: 'Accounts', description: 'Operaciones de cuentas')]
 #[OA\Tag(name: 'Payment Methods', description: 'Operaciones de métodos de pago')]
+#[OA\Tag(name: 'Payment Providers', description: 'Catálogo de proveedores de pago')]
 #[OA\Tag(name: 'System', description: 'Operaciones de sistema')]
 final readonly class PayInController
 {

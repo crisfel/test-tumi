@@ -500,19 +500,32 @@
                 "tags": [
                     "Payment Methods"
                 ],
-                "summary": "Listar métodos de pago de una cuenta",
-                "description": "Lista los métodos de pago de una cuenta con paginación.",
+                "summary": "Listar métodos de pago",
+                "description": "Lista el catálogo global de métodos de pago con filtros y paginación.",
                 "operationId": "a898066d6de1a49380895e596ed98e9d",
                 "parameters": [
                     {
-                        "name": "account_id",
+                        "name": "type",
                         "in": "query",
-                        "description": "UUID de la cuenta",
-                        "required": true,
+                        "required": false,
                         "schema": {
                             "type": "string",
-                            "format": "uuid",
-                            "example": "019fd715-ec1a-7a7e-ab6f-f497aa52abe4"
+                            "enum": [
+                                "card",
+                                "bank_transfer",
+                                "wallet",
+                                "pse",
+                                "cash"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "provider_code",
+                        "in": "query",
+                        "description": "Filtra por proveedor (p. ej. fakepay)",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
                         }
                     },
                     {
@@ -546,7 +559,7 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "Página de métodos de pago de la cuenta",
+                        "description": "Página de métodos de pago",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -556,7 +569,7 @@
                         }
                     },
                     "404": {
-                        "description": "Cuenta inexistente",
+                        "description": "Proveedor inexistente (filtro provider_code)",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -572,7 +585,7 @@
                     "Payment Methods"
                 ],
                 "summary": "Registrar un método de pago",
-                "description": "Registra un método de pago en una cuenta.\n\nEl proveedor se resuelve por su código y debe estar activo. Un token\nno puede registrarse dos veces en la misma cuenta (409).",
+                "description": "Registra un método de pago (instrumento independiente).\n\nEl método se registra en el proveedor indicado, que debe estar activo\ny soportar su tipo (matriz de capacidades). El token es único en el\nespacio de tokenización del proveedor (409 si ya existe).",
                 "operationId": "7a31b83b8ad92533fa7b88db0a3b3052",
                 "parameters": [
                     {
@@ -607,7 +620,7 @@
                         }
                     },
                     "422": {
-                        "description": "Datos de entrada inválidos o proveedor inactivo",
+                        "description": "Datos inválidos, proveedor inactivo o tipo no soportado por el proveedor",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -617,7 +630,7 @@
                         }
                     },
                     "404": {
-                        "description": "Cuenta o proveedor inexistente",
+                        "description": "Proveedor inexistente",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -627,7 +640,7 @@
                         }
                     },
                     "409": {
-                        "description": "El token ya está registrado en la cuenta",
+                        "description": "El token ya está registrado en el proveedor",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -686,6 +699,112 @@
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/payment-providers/{id}": {
+            "get": {
+                "tags": [
+                    "Payment Providers"
+                ],
+                "summary": "Consultar un proveedor de pago",
+                "description": "Consulta un proveedor por su identificador (incluye sus capacidades).",
+                "operationId": "86ab3e2f30c4f580ef36313819a7e50a",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "UUID del proveedor",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid",
+                            "example": "019fd715-eb24-7683-b8d2-9d83ffdca22d"
+                        }
+                    },
+                    {
+                        "name": "X-Correlation-Id",
+                        "in": "header",
+                        "description": "Identificador de correlación para trazabilidad",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Proveedor encontrado",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PaymentProviderResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Proveedor inexistente",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/payment-providers": {
+            "get": {
+                "tags": [
+                    "Payment Providers"
+                ],
+                "summary": "Listar proveedores de pago",
+                "description": "Lista el catálogo de proveedores con sus capacidades.",
+                "operationId": "21d5ca590a829c68fb31a35bf633dd90",
+                "parameters": [
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 20,
+                            "maximum": 100
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 0
+                        }
+                    },
+                    {
+                        "name": "X-Correlation-Id",
+                        "in": "header",
+                        "description": "Identificador de correlación para trazabilidad",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Página de proveedores",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PaymentProviderPage"
                                 }
                             }
                         }
@@ -1088,7 +1207,6 @@
             "PaymentMethod": {
                 "required": [
                     "id",
-                    "account_id",
                     "provider_id",
                     "type",
                     "details_masked",
@@ -1102,12 +1220,8 @@
                         "format": "uuid",
                         "example": "019fd715-ec43-784b-97dd-9b2fe70bfe69"
                     },
-                    "account_id": {
-                        "type": "string",
-                        "format": "uuid",
-                        "example": "019fd715-ec1a-7a7e-ab6f-f497aa52abe4"
-                    },
                     "provider_id": {
+                        "description": "Proveedor que tokenizó el método",
                         "type": "string",
                         "format": "uuid",
                         "example": "019fd715-eb24-7683-b8d2-9d83ffdca22d"
@@ -1118,7 +1232,8 @@
                             "card",
                             "bank_transfer",
                             "wallet",
-                            "pse"
+                            "pse",
+                            "cash"
                         ],
                         "example": "card"
                     },
@@ -1134,6 +1249,102 @@
                         "type": "string",
                         "format": "date-time",
                         "example": "2026-08-06T12:54:23Z"
+                    }
+                },
+                "type": "object"
+            },
+            "PaymentProviderPage": {
+                "required": [
+                    "data",
+                    "meta"
+                ],
+                "properties": {
+                    "data": {
+                        "description": "Schema OpenAPI de la página del catálogo de proveedores.",
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/PaymentProvider"
+                        }
+                    },
+                    "meta": {
+                        "required": [
+                            "total",
+                            "limit",
+                            "offset"
+                        ],
+                        "properties": {
+                            "total": {
+                                "type": "integer",
+                                "example": 3
+                            },
+                            "limit": {
+                                "type": "integer",
+                                "example": 20
+                            },
+                            "offset": {
+                                "type": "integer",
+                                "example": 0
+                            }
+                        },
+                        "type": "object"
+                    }
+                },
+                "type": "object"
+            },
+            "PaymentProviderResponse": {
+                "required": [
+                    "data"
+                ],
+                "properties": {
+                    "data": {
+                        "$ref": "#/components/schemas/PaymentProvider"
+                    }
+                },
+                "type": "object"
+            },
+            "PaymentProvider": {
+                "required": [
+                    "id",
+                    "code",
+                    "name",
+                    "is_active",
+                    "supported_types"
+                ],
+                "properties": {
+                    "id": {
+                        "description": "Schema OpenAPI de la representación de un proveedor de pago.",
+                        "type": "string",
+                        "format": "uuid",
+                        "example": "019fd715-eb24-7683-b8d2-9d83ffdca22d"
+                    },
+                    "code": {
+                        "type": "string",
+                        "example": "fakepay"
+                    },
+                    "name": {
+                        "type": "string",
+                        "example": "FakePay"
+                    },
+                    "is_active": {
+                        "type": "boolean",
+                        "example": true
+                    },
+                    "supported_types": {
+                        "description": "Matriz de capacidades: tipos de método que el proveedor puede procesar",
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "enum": [
+                                "card",
+                                "bank_transfer",
+                                "wallet",
+                                "pse",
+                                "cash"
+                            ]
+                        },
+                        "example": [
+                            "card"
+                        ]
                     }
                 },
                 "type": "object"
@@ -1239,37 +1450,31 @@
             },
             "StorePaymentMethodRequest": {
                 "required": [
-                    "account_id",
                     "provider_code",
                     "type",
                     "token",
                     "details_masked"
                 ],
                 "properties": {
-                    "account_id": {
-                        "description": "UUID de la cuenta titular",
-                        "type": "string",
-                        "format": "uuid",
-                        "example": "019fd715-ec1a-7a7e-ab6f-f497aa52abe4"
-                    },
                     "provider_code": {
-                        "description": "Código del proveedor que procesará el cobro",
+                        "description": "Código del proveedor que tokeniza el método y procesará el cobro",
                         "type": "string",
                         "example": "fakepay"
                     },
                     "type": {
-                        "description": "Tipo de método de pago",
+                        "description": "Tipo de método de pago (debe estar en las capacidades del proveedor)",
                         "type": "string",
                         "enum": [
                             "card",
                             "bank_transfer",
                             "wallet",
-                            "pse"
+                            "pse",
+                            "cash"
                         ],
                         "example": "card"
                     },
                     "token": {
-                        "description": "Token opaco de cobro (nunca el PAN)",
+                        "description": "Token opaco de cobro emitido por el proveedor (nunca el PAN)",
                         "type": "string",
                         "example": "tok_card_visa_4242"
                     },
@@ -1299,6 +1504,10 @@
         {
             "name": "Payment Methods",
             "description": "Operaciones de métodos de pago"
+        },
+        {
+            "name": "Payment Providers",
+            "description": "Catálogo de proveedores de pago"
         },
         {
             "name": "System",

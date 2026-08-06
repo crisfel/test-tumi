@@ -13,7 +13,7 @@ use PayIn\Domain\PaymentMethod\PaymentMethodType;
  * disponibles. Declara la matriz de capacidades (supportedTypes): los
  * tipos de método de pago que la pasarela puede procesar.
  */
-final class PaymentProvider
+final readonly class PaymentProvider
 {
     private const MAX_NAME_LENGTH = 100;
 
@@ -22,12 +22,12 @@ final class PaymentProvider
      * @param array<string, mixed>    $configuration
      */
     private function __construct(
-        private readonly ProviderId $id,
-        private readonly ProviderCode $code,
-        private readonly string $name,
-        private readonly bool $active,
-        private readonly array $supportedTypes,
-        private readonly array $configuration,
+        private ProviderId $id,
+        private ProviderCode $code,
+        private string $name,
+        private bool $active,
+        private array $supportedTypes,
+        private array $configuration,
     ) {
     }
 
