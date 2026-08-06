@@ -1,0 +1,301 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+        "title": "PayIn Platform",
+        "description": "API del componente PayIn: procesamiento de ingresos de fondos.",
+        "version": "1.0.0"
+    },
+    "servers": [
+        {
+            "url": "http://localhost:8080/api",
+            "description": "Servidor de desarrollo"
+        }
+    ],
+    "paths": {
+        "/v1/payins": {
+            "get": {
+                "tags": [
+                    "PayIns"
+                ],
+                "summary": "Listar PayIns",
+                "description": "Lista PayIns con filtros y paginación.",
+                "operationId": "6a63a358d46ccf0dbc5578dfaacf4442",
+                "parameters": [
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "created",
+                                "validated",
+                                "processing",
+                                "processed",
+                                "failed"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "from",
+                        "in": "query",
+                        "description": "Fecha inicial (ISO 8601)",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time"
+                        }
+                    },
+                    {
+                        "name": "to",
+                        "in": "query",
+                        "description": "Fecha final (ISO 8601)",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 20,
+                            "maximum": 100
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 0
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Página de PayIns"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "PayIns"
+                ],
+                "summary": "Procesar un PayIn",
+                "description": "Crea y procesa un PayIn.\n\nLa operación valida los aggregates, persiste el PayIn (CREATED →\nVALIDATED), delega el cobro al proveedor resuelto por el método de\npago y aplica el resultado (PROCESSED/FAILED). Si el proveedor\nrechaza la operación, el PayIn se crea con estado FAILED y el\nerror_code correspondiente.",
+                "operationId": "bf4900ce65a5a83fb780a2587ef7e610",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/StorePayInRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "PayIn creado y procesado",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PayIn"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Datos de entrada inválidos"
+                    },
+                    "404": {
+                        "description": "Cliente, cuenta, método de pago o proveedor inexistente"
+                    },
+                    "409": {
+                        "description": "Referencia ya utilizada"
+                    },
+                    "502": {
+                        "description": "Error inesperado del proveedor"
+                    }
+                }
+            }
+        },
+        "/v1/payins/{id}": {
+            "get": {
+                "tags": [
+                    "PayIns"
+                ],
+                "summary": "Consultar un PayIn",
+                "description": "Consulta un PayIn por su identificador.",
+                "operationId": "f757657cd5b9f5010225c51e608835a7",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "UUID del PayIn",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "PayIn encontrado",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PayIn"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "PayIn inexistente"
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "PayIn": {
+                "properties": {
+                    "id": {
+                        "description": "Schema OpenAPI de la representación de un PayIn.",
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "client_id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "account_id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "payment_method_id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "amount": {
+                        "type": "integer"
+                    },
+                    "currency": {
+                        "type": "string",
+                        "enum": [
+                            "COP",
+                            "USD",
+                            "EUR",
+                            "MXN"
+                        ]
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "created",
+                            "validated",
+                            "processing",
+                            "processed",
+                            "failed"
+                        ]
+                    },
+                    "reference": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "provider_id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "nullable": true
+                    },
+                    "provider_transaction_id": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "error_code": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "error_message": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "processed_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    }
+                },
+                "type": "object"
+            },
+            "StorePayInRequest": {
+                "required": [
+                    "client_id",
+                    "account_id",
+                    "payment_method_id",
+                    "amount",
+                    "currency"
+                ],
+                "properties": {
+                    "client_id": {
+                        "description": "UUID del cliente que origina la operación",
+                        "type": "string",
+                        "format": "uuid",
+                        "example": "019f0000-0000-7000-8000-000000000001"
+                    },
+                    "account_id": {
+                        "description": "UUID de la cuenta destino",
+                        "type": "string",
+                        "format": "uuid",
+                        "example": "019f0000-0000-7000-8000-000000000002"
+                    },
+                    "payment_method_id": {
+                        "description": "UUID del método de pago",
+                        "type": "string",
+                        "format": "uuid",
+                        "example": "019f0000-0000-7000-8000-000000000003"
+                    },
+                    "amount": {
+                        "description": "Monto en unidades menores (enteras) de la moneda",
+                        "type": "integer",
+                        "example": 25000
+                    },
+                    "currency": {
+                        "description": "Moneda ISO 4217",
+                        "type": "string",
+                        "enum": [
+                            "COP",
+                            "USD",
+                            "EUR",
+                            "MXN"
+                        ],
+                        "example": "COP"
+                    },
+                    "reference": {
+                        "description": "Referencia idempotente del cliente (opcional)",
+                        "type": "string",
+                        "example": "order-2026-0001"
+                    }
+                },
+                "type": "object"
+            }
+        }
+    },
+    "tags": [
+        {
+            "name": "PayIns",
+            "description": "Operaciones PayIn"
+        }
+    ]
+}
