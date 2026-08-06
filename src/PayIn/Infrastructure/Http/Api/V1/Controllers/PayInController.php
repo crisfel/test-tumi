@@ -25,6 +25,7 @@ use PayIn\Infrastructure\Http\Resources\PayInResource;
 #[OA\Info(version: '1.0.0', description: 'API del componente PayIn: procesamiento de ingresos de fondos.', title: 'PayIn Platform')]
 #[OA\Server(url: 'http://localhost:8080/api', description: 'Servidor de desarrollo')]
 #[OA\Tag(name: 'PayIns', description: 'Operaciones PayIn')]
+#[OA\Tag(name: 'System', description: 'Operaciones de sistema')]
 final readonly class PayInController
 {
     public function __construct(
@@ -33,6 +34,7 @@ final readonly class PayInController
         private ListPayInsService $listPayIns,
     ) {
     }
+
     /**
      * Crea y procesa un PayIn.
      *
@@ -46,6 +48,9 @@ final readonly class PayInController
         path: '/v1/payins',
         summary: 'Procesar un PayIn',
         tags: ['PayIns'],
+        parameters: [
+            new OA\Parameter(name: 'X-Correlation-Id', in: 'header', required: false, description: 'Identificador de correlación para trazabilidad', schema: new OA\Schema(type: 'string')),
+        ],
         requestBody: new OA\RequestBody(
             required: true,
             content: new OA\JsonContent(ref: '#/components/schemas/StorePayInRequest'),
@@ -53,13 +58,29 @@ final readonly class PayInController
         responses: [
             new OA\Response(
                 response: 201,
-                description: 'PayIn creado y procesado',
-                content: new OA\JsonContent(ref: '#/components/schemas/PayIn'),
+                description: 'PayIn creado y procesado (estado processed o failed según el proveedor)',
+                content: new OA\JsonContent(ref: '#/components/schemas/PayInResponse'),
             ),
-            new OA\Response(response: 422, description: 'Datos de entrada inválidos'),
-            new OA\Response(response: 404, description: 'Cliente, cuenta, método de pago o proveedor inexistente'),
-            new OA\Response(response: 409, description: 'Referencia ya utilizada'),
-            new OA\Response(response: 502, description: 'Error inesperado del proveedor'),
+            new OA\Response(
+                response: 422,
+                description: 'Datos de entrada inválidos o invariantes de dominio violadas',
+                content: new OA\JsonContent(ref: '#/components/schemas/ErrorResponse'),
+            ),
+            new OA\Response(
+                response: 404,
+                description: 'Cliente, cuenta, método de pago o proveedor inexistente',
+                content: new OA\JsonContent(ref: '#/components/schemas/ErrorResponse'),
+            ),
+            new OA\Response(
+                response: 409,
+                description: 'Referencia ya utilizada o conflicto de estado/concurrencia',
+                content: new OA\JsonContent(ref: '#/components/schemas/ErrorResponse'),
+            ),
+            new OA\Response(
+                response: 502,
+                description: 'Error inesperado del proveedor de pago',
+                content: new OA\JsonContent(ref: '#/components/schemas/ErrorResponse'),
+            ),
         ],
     )]
     public function store(StorePayInRequest $request): JsonResponse
@@ -70,6 +91,7 @@ final readonly class PayInController
 
         return (new PayInResource($payIn))->response()->setStatusCode(201);
     }
+
     /**
      * Consulta un PayIn por su identificador.
      */
@@ -78,11 +100,20 @@ final readonly class PayInController
         summary: 'Consultar un PayIn',
         tags: ['PayIns'],
         parameters: [
-            new OA\Parameter(name: 'id', in: 'path', required: true, description: 'UUID del PayIn', schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'id', in: 'path', required: true, description: 'UUID del PayIn', schema: new OA\Schema(type: 'string', format: 'uuid', example: '019fd738-d4f2-7bc9-916b-0ae687b42038')),
+            new OA\Parameter(name: 'X-Correlation-Id', in: 'header', required: false, description: 'Identificador de correlación para trazabilidad', schema: new OA\Schema(type: 'string')),
         ],
         responses: [
-            new OA\Response(response: 200, description: 'PayIn encontrado', content: new OA\JsonContent(ref: '#/components/schemas/PayIn')),
-            new OA\Response(response: 404, description: 'PayIn inexistente'),
+            new OA\Response(
+                response: 200,
+                description: 'PayIn encontrado',
+                content: new OA\JsonContent(ref: '#/components/schemas/PayInResponse'),
+            ),
+            new OA\Response(
+                response: 404,
+                description: 'PayIn inexistente',
+                content: new OA\JsonContent(ref: '#/components/schemas/ErrorResponse'),
+            ),
         ],
     )]
     public function show(Request $request, string $id): PayInResource
@@ -91,6 +122,7 @@ final readonly class PayInController
 
         return new PayInResource($payIn);
     }
+
     /**
      * Lista PayIns con filtros y paginación.
      */
@@ -104,9 +136,14 @@ final readonly class PayInController
             new OA\Parameter(name: 'to', in: 'query', required: false, description: 'Fecha final (ISO 8601)', schema: new OA\Schema(type: 'string', format: 'date-time')),
             new OA\Parameter(name: 'limit', in: 'query', required: false, schema: new OA\Schema(type: 'integer', maximum: 100, default: 20)),
             new OA\Parameter(name: 'offset', in: 'query', required: false, schema: new OA\Schema(type: 'integer', default: 0)),
+            new OA\Parameter(name: 'X-Correlation-Id', in: 'header', required: false, description: 'Identificador de correlación para trazabilidad', schema: new OA\Schema(type: 'string')),
         ],
         responses: [
-            new OA\Response(response: 200, description: 'Página de PayIns'),
+            new OA\Response(
+                response: 200,
+                description: 'Página de PayIns',
+                content: new OA\JsonContent(ref: '#/components/schemas/PayInPage'),
+            ),
         ],
     )]
     public function index(ListPayInsRequest $request): PayInCollectionResource

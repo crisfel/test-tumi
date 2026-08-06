@@ -74,11 +74,27 @@
                             "type": "integer",
                             "default": 0
                         }
+                    },
+                    {
+                        "name": "X-Correlation-Id",
+                        "in": "header",
+                        "description": "Identificador de correlación para trazabilidad",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Página de PayIns"
+                        "description": "Página de PayIns",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PayInPage"
+                                }
+                            }
+                        }
                     }
                 }
             },
@@ -89,6 +105,17 @@
                 "summary": "Procesar un PayIn",
                 "description": "Crea y procesa un PayIn.\n\nLa operación valida los aggregates, persiste el PayIn (CREATED →\nVALIDATED), delega el cobro al proveedor resuelto por el método de\npago y aplica el resultado (PROCESSED/FAILED). Si el proveedor\nrechaza la operación, el PayIn se crea con estado FAILED y el\nerror_code correspondiente.",
                 "operationId": "bf4900ce65a5a83fb780a2587ef7e610",
+                "parameters": [
+                    {
+                        "name": "X-Correlation-Id",
+                        "in": "header",
+                        "description": "Identificador de correlación para trazabilidad",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
                 "requestBody": {
                     "required": true,
                     "content": {
@@ -101,26 +128,54 @@
                 },
                 "responses": {
                     "201": {
-                        "description": "PayIn creado y procesado",
+                        "description": "PayIn creado y procesado (estado processed o failed según el proveedor)",
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/PayIn"
+                                    "$ref": "#/components/schemas/PayInResponse"
                                 }
                             }
                         }
                     },
                     "422": {
-                        "description": "Datos de entrada inválidos"
+                        "description": "Datos de entrada inválidos o invariantes de dominio violadas",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
                     },
                     "404": {
-                        "description": "Cliente, cuenta, método de pago o proveedor inexistente"
+                        "description": "Cliente, cuenta, método de pago o proveedor inexistente",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
                     },
                     "409": {
-                        "description": "Referencia ya utilizada"
+                        "description": "Referencia ya utilizada o conflicto de estado/concurrencia",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
                     },
                     "502": {
-                        "description": "Error inesperado del proveedor"
+                        "description": "Error inesperado del proveedor de pago",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -141,7 +196,17 @@
                         "required": true,
                         "schema": {
                             "type": "string",
-                            "format": "uuid"
+                            "format": "uuid",
+                            "example": "019fd738-d4f2-7bc9-916b-0ae687b42038"
+                        }
+                    },
+                    {
+                        "name": "X-Correlation-Id",
+                        "in": "header",
+                        "description": "Identificador de correlación para trazabilidad",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
                         }
                     }
                 ],
@@ -151,13 +216,42 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/PayIn"
+                                    "$ref": "#/components/schemas/PayInResponse"
                                 }
                             }
                         }
                     },
                     "404": {
-                        "description": "PayIn inexistente"
+                        "description": "PayIn inexistente",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/up": {
+            "get": {
+                "tags": [
+                    "System"
+                ],
+                "summary": "Health check",
+                "description": "Verifica que la aplicación está en funcionamiento.",
+                "operationId": "2b9914ab2f4e2c6002603801120309a5",
+                "responses": {
+                    "200": {
+                        "description": "Aplicación operativa",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HealthResponse"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -165,27 +259,140 @@
     },
     "components": {
         "schemas": {
+            "ErrorResponse": {
+                "required": [
+                    "errors"
+                ],
+                "properties": {
+                    "errors": {
+                        "description": "Schema OpenAPI del envelope de error homogéneo de la API.",
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/Error"
+                        }
+                    }
+                },
+                "type": "object"
+            },
+            "Error": {
+                "required": [
+                    "code",
+                    "message"
+                ],
+                "properties": {
+                    "code": {
+                        "description": "Código de error estable",
+                        "type": "string",
+                        "example": "REFERENCE_ALREADY_USED"
+                    },
+                    "message": {
+                        "description": "Mensaje legible del error",
+                        "type": "string",
+                        "example": "La referencia \"postman-0001\" ya fue utilizada en otra operación."
+                    },
+                    "meta": {
+                        "description": "Contexto adicional del error",
+                        "type": "object",
+                        "additionalProperties": true
+                    }
+                },
+                "type": "object"
+            },
+            "HealthResponse": {
+                "properties": {
+                    "status": {
+                        "description": "Estado de la aplicación",
+                        "type": "string",
+                        "example": "ok"
+                    }
+                },
+                "type": "object"
+            },
+            "PayInPage": {
+                "required": [
+                    "data",
+                    "meta"
+                ],
+                "properties": {
+                    "data": {
+                        "description": "Schema OpenAPI de la página de listado de PayIns.",
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/PayIn"
+                        }
+                    },
+                    "meta": {
+                        "required": [
+                            "total",
+                            "limit",
+                            "offset"
+                        ],
+                        "properties": {
+                            "total": {
+                                "type": "integer",
+                                "example": 42
+                            },
+                            "limit": {
+                                "type": "integer",
+                                "example": 20
+                            },
+                            "offset": {
+                                "type": "integer",
+                                "example": 0
+                            }
+                        },
+                        "type": "object"
+                    }
+                },
+                "type": "object"
+            },
+            "PayInResponse": {
+                "required": [
+                    "data"
+                ],
+                "properties": {
+                    "data": {
+                        "$ref": "#/components/schemas/PayIn"
+                    }
+                },
+                "type": "object"
+            },
             "PayIn": {
+                "required": [
+                    "id",
+                    "client_id",
+                    "account_id",
+                    "payment_method_id",
+                    "amount",
+                    "currency",
+                    "status",
+                    "created_at"
+                ],
                 "properties": {
                     "id": {
                         "description": "Schema OpenAPI de la representación de un PayIn.",
                         "type": "string",
-                        "format": "uuid"
+                        "format": "uuid",
+                        "example": "019fd738-d4f2-7bc9-916b-0ae687b42038"
                     },
                     "client_id": {
                         "type": "string",
-                        "format": "uuid"
+                        "format": "uuid",
+                        "example": "019fd715-ebf8-7223-ada8-b3c168a28e22"
                     },
                     "account_id": {
                         "type": "string",
-                        "format": "uuid"
+                        "format": "uuid",
+                        "example": "019fd715-ec1a-7a7e-ab6f-f497aa52abe4"
                     },
                     "payment_method_id": {
                         "type": "string",
-                        "format": "uuid"
+                        "format": "uuid",
+                        "example": "019fd715-ec43-784b-97dd-9b2fe70bfe69"
                     },
                     "amount": {
-                        "type": "integer"
+                        "type": "integer",
+                        "example": 25000
                     },
                     "currency": {
                         "type": "string",
@@ -194,7 +401,8 @@
                             "USD",
                             "EUR",
                             "MXN"
-                        ]
+                        ],
+                        "example": "COP"
                     },
                     "status": {
                         "type": "string",
@@ -204,36 +412,44 @@
                             "processing",
                             "processed",
                             "failed"
-                        ]
+                        ],
+                        "example": "processed"
                     },
                     "reference": {
                         "type": "string",
+                        "example": "order-2026-0001",
                         "nullable": true
                     },
                     "provider_id": {
                         "type": "string",
                         "format": "uuid",
+                        "example": "019fd715-eb24-7683-b8d2-9d83ffdca22d",
                         "nullable": true
                     },
                     "provider_transaction_id": {
                         "type": "string",
+                        "example": "FP-019FD738-D4F",
                         "nullable": true
                     },
                     "error_code": {
                         "type": "string",
+                        "example": null,
                         "nullable": true
                     },
                     "error_message": {
                         "type": "string",
+                        "example": null,
                         "nullable": true
                     },
                     "created_at": {
                         "type": "string",
-                        "format": "date-time"
+                        "format": "date-time",
+                        "example": "2026-08-06T12:54:23Z"
                     },
                     "processed_at": {
                         "type": "string",
                         "format": "date-time",
+                        "example": "2026-08-06T12:54:23Z",
                         "nullable": true
                     }
                 },
@@ -252,23 +468,24 @@
                         "description": "UUID del cliente que origina la operación",
                         "type": "string",
                         "format": "uuid",
-                        "example": "019f0000-0000-7000-8000-000000000001"
+                        "example": "019fd715-ebf8-7223-ada8-b3c168a28e22"
                     },
                     "account_id": {
                         "description": "UUID de la cuenta destino",
                         "type": "string",
                         "format": "uuid",
-                        "example": "019f0000-0000-7000-8000-000000000002"
+                        "example": "019fd715-ec1a-7a7e-ab6f-f497aa52abe4"
                     },
                     "payment_method_id": {
                         "description": "UUID del método de pago",
                         "type": "string",
                         "format": "uuid",
-                        "example": "019f0000-0000-7000-8000-000000000003"
+                        "example": "019fd715-ec43-784b-97dd-9b2fe70bfe69"
                     },
                     "amount": {
                         "description": "Monto en unidades menores (enteras) de la moneda",
                         "type": "integer",
+                        "minimum": 1,
                         "example": 25000
                     },
                     "currency": {
@@ -296,6 +513,10 @@
         {
             "name": "PayIns",
             "description": "Operaciones PayIn"
+        },
+        {
+            "name": "System",
+            "description": "Operaciones de sistema"
         }
     ]
 }
