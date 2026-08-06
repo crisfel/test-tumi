@@ -6,6 +6,7 @@ namespace PayIn\Domain\Contracts;
 
 use PayIn\Domain\Client\Client;
 use PayIn\Domain\Client\ClientId;
+use PayIn\Domain\Email;
 
 /**
  * Puertos de persistencia del dominio (Ports & Adapters).
@@ -16,4 +17,8 @@ use PayIn\Domain\Client\ClientId;
 interface ClientRepository
 {
     public function findById(ClientId $id): ?Client;
+
+    public function save(Client $client): void;
+
+    public function existsByEmail(Email $email): bool;
 }

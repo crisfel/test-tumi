@@ -12,6 +12,69 @@
         }
     ],
     "paths": {
+        "/v1/clients": {
+            "post": {
+                "tags": [
+                    "Clients"
+                ],
+                "summary": "Registrar un cliente",
+                "description": "Registra un nuevo cliente.\n\nEl email es único en la plataforma (409 si ya existe). Un cliente\nnuevo no posee cuentas; debe asociársele una antes de procesar PayIns.",
+                "operationId": "54384bcbf4870a83b47338b2cc405cf4",
+                "parameters": [
+                    {
+                        "name": "X-Correlation-Id",
+                        "in": "header",
+                        "description": "Identificador de correlación para trazabilidad",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/StoreClientRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Cliente registrado",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ClientResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Datos de entrada inválidos",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Email ya registrado",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/v1/payins": {
             "get": {
                 "tags": [
@@ -259,6 +322,42 @@
     },
     "components": {
         "schemas": {
+            "ClientResponse": {
+                "required": [
+                    "data"
+                ],
+                "properties": {
+                    "data": {
+                        "$ref": "#/components/schemas/Client"
+                    }
+                },
+                "type": "object"
+            },
+            "Client": {
+                "required": [
+                    "id",
+                    "name",
+                    "email"
+                ],
+                "properties": {
+                    "id": {
+                        "description": "Schema OpenAPI de la representación de un cliente.",
+                        "type": "string",
+                        "format": "uuid",
+                        "example": "019fd715-ebf8-7223-ada8-b3c168a28e22"
+                    },
+                    "name": {
+                        "type": "string",
+                        "example": "Carlos Rodríguez"
+                    },
+                    "email": {
+                        "type": "string",
+                        "format": "email",
+                        "example": "carlos.rodriguez@example.com"
+                    }
+                },
+                "type": "object"
+            },
             "ErrorResponse": {
                 "required": [
                     "errors"
@@ -455,6 +554,27 @@
                 },
                 "type": "object"
             },
+            "StoreClientRequest": {
+                "required": [
+                    "name",
+                    "email"
+                ],
+                "properties": {
+                    "name": {
+                        "description": "Nombre del cliente",
+                        "type": "string",
+                        "maxLength": 100,
+                        "example": "Carlos Rodríguez"
+                    },
+                    "email": {
+                        "description": "Email único del cliente",
+                        "type": "string",
+                        "format": "email",
+                        "example": "carlos.rodriguez@example.com"
+                    }
+                },
+                "type": "object"
+            },
             "StorePayInRequest": {
                 "required": [
                     "client_id",
@@ -513,6 +633,10 @@
         {
             "name": "PayIns",
             "description": "Operaciones PayIn"
+        },
+        {
+            "name": "Clients",
+            "description": "Operaciones de clientes"
         },
         {
             "name": "System",

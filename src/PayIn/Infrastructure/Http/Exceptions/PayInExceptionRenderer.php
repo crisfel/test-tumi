@@ -7,6 +7,7 @@ namespace PayIn\Infrastructure\Http\Exceptions;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Validation\ValidationException;
 use PayIn\Application\Exception\AccountNotFoundException;
+use PayIn\Application\Exception\ClientAlreadyExistsException;
 use PayIn\Application\Exception\ClientNotFoundException;
 use PayIn\Application\Exception\PayInApplicationException;
 use PayIn\Application\Exception\PayInConcurrencyException;
@@ -86,6 +87,7 @@ final class PayInExceptionRenderer
             $exception instanceof PaymentProviderNotFoundException,
             $exception instanceof PayInNotFoundException => $this->renderDomainException($exception, 404),
             $exception instanceof ReferenceAlreadyUsedException,
+            $exception instanceof ClientAlreadyExistsException,
             $exception instanceof PayInConcurrencyException => $this->renderDomainException($exception, 409),
             $exception instanceof PaymentGatewayNotFoundException,
             $exception instanceof PayInProcessingException => $this->renderDomainException($exception, 502),

@@ -204,10 +204,20 @@ Cada estado declara sus transiciones permitidas en `PayInStatus::transitions()`;
 
 | Método | Ruta | Descripción |
 |---|---|---|
+| `POST` | `/api/v1/clients` | Registra un cliente (name + email único) |
 | `POST` | `/api/v1/payins` | Crea y procesa un PayIn (orquestación completa) |
 | `GET` | `/api/v1/payins/{id}` | Consulta por UUID |
 | `GET` | `/api/v1/payins` | Listado paginado con filtros (`status`, `from`, `to`, `limit`, `offset`) |
 | `GET` | `/api/documentation` | UI Swagger/OpenAPI (spec en `/docs`) |
+
+**Ejemplo de petición (crear cliente):**
+
+```json
+{
+  "name": "Carlos Rodríguez",
+  "email": "carlos.rodriguez@example.com"
+}
+```
 
 **Ejemplo de petición:**
 
