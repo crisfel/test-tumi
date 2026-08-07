@@ -22,7 +22,38 @@ use PayIn\Infrastructure\Http\Resources\PayInResource;
  * Controlador "delgado": valida la entrada, delega en los casos de uso y
  * serializa la respuesta. No contiene lógica de negocio.
  */
-#[OA\Info(version: '1.0.0', description: 'API del componente PayIn: procesamiento de ingresos de fondos.', title: 'PayIn Platform')]
+#[OA\Info(
+    version: '1.0.0',
+    description: <<<'DESC'
+API del componente **PayIn**: procesamiento de ingresos de fondos (transferencias entre cuentas de la plataforma).
+
+## 🧪 Prueba en 5 pasos (Ana → Pedro)
+
+Los datos de la demo ya están sembrados y los ejemplos de esta documentación usan los mismos IDs, así que **"Try it out" funciona sin editar nada**.
+
+1. **POST /v1/payins** → "Try it out" → pega este JSON → "Execute":
+```json
+{
+  "client_id": "019fd715-ebf8-7223-ada8-b3c168a28e22",
+  "origin_account_id": "019fd715-ec1a-7a7e-ab6f-f497aa52abe4",
+  "account_id": "019fd715-ec22-700c-8cba-ea026d0fd9a9",
+  "payment_method_id": "019fd715-ec43-784b-97dd-9b2fe70bfe69",
+  "amount": 25000,
+  "currency": "COP",
+  "reference": "order-2026-0001"
+}
+```
+2. Respuesta **201** con `"status": "processed"` y un `"id"`.
+3. **¿Bajó el de Ana?** `GET /v1/accounts/019fd715-ec1a-7a7e-ab6f-f497aa52abe4` → `"balance": 75000`.
+4. **¿Subió el de Pedro?** `GET /v1/accounts/019fd715-ec22-700c-8cba-ea026d0fd9a9` → `"balance": 25000`.
+5. **Historial y estados:** `GET /v1/payins?client_id={id_ana}` y `GET /v1/payins?status=processed|failed`.
+
+**Estados del PayIn:** `CREATED → VALIDATED → PROCESSING → PROCESSED/FAILED` (síncrono: solo queda el estado final). Para ver un `FAILED`, configura `PAYIN_FAKEPAY_BEHAVIOR=rejected` en `.env`, reinicia el contenedor y crea otro PayIn con la tarjeta.
+
+> Detalle: los IDs de los clientes/cuentas/métodos están fijos y aparecen en la guía visual de esta página.
+DESC,
+    title: 'PayIn Platform',
+)]
 #[OA\Server(url: 'http://localhost:8080/api', description: 'Servidor de desarrollo')]
 #[OA\Tag(name: 'PayIns', description: 'Operaciones PayIn')]
 #[OA\Tag(name: 'Clients', description: 'Operaciones de clientes')]
@@ -135,6 +166,7 @@ final readonly class PayInController
         summary: 'Listar PayIns',
         tags: ['PayIns'],
         parameters: [
+            new OA\Parameter(name: 'client_id', in: 'query', required: false, description: 'UUID del cliente: devuelve su HISTORIAL de transacciones (ej.: Ana)', schema: new OA\Schema(type: 'string', format: 'uuid', example: '019fd715-ebf8-7223-ada8-b3c168a28e22')),
             new OA\Parameter(name: 'status', in: 'query', required: false, schema: new OA\Schema(type: 'string', enum: ['created', 'validated', 'processing', 'processed', 'failed'])),
             new OA\Parameter(name: 'from', in: 'query', required: false, description: 'Fecha inicial (ISO 8601)', schema: new OA\Schema(type: 'string', format: 'date-time')),
             new OA\Parameter(name: 'to', in: 'query', required: false, description: 'Fecha final (ISO 8601)', schema: new OA\Schema(type: 'string', format: 'date-time')),

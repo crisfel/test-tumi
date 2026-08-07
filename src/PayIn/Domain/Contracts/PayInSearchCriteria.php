@@ -4,13 +4,15 @@ declare(strict_types=1);
 
 namespace PayIn\Domain\Contracts;
 
+use PayIn\Domain\Client\ClientId;
 use PayIn\Domain\PayIn\PayInStatus;
 
 /**
  * Criterio de búsqueda de PayIns (Specification de consulta).
  *
  * Definido en el dominio para que el contrato de repositorio no dependa del
- * Application layer.
+ * Application layer. Permite filtrar el historial por cliente (client_id),
+ * por estado y por rango de fechas.
  */
 final readonly class PayInSearchCriteria
 {
@@ -19,6 +21,7 @@ final readonly class PayInSearchCriteria
     public const MAX_LIMIT = 100;
 
     public function __construct(
+        public ?ClientId $clientId = null,
         public ?PayInStatus $status = null,
         public ?\DateTimeImmutable $from = null,
         public ?\DateTimeImmutable $to = null,

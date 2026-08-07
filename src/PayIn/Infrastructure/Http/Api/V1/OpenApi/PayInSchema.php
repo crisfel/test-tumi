@@ -15,8 +15,8 @@ use OpenApi\Attributes as OA;
     properties: [
         new OA\Property(property: 'id', type: 'string', format: 'uuid', example: '019fd738-d4f2-7bc9-916b-0ae687b42038'),
         new OA\Property(property: 'client_id', type: 'string', format: 'uuid', example: '019fd715-ebf8-7223-ada8-b3c168a28e22'),
-        new OA\Property(property: 'origin_account_id', description: 'Cuenta del pagador (se debita)', type: 'string', format: 'uuid', example: '019fd715-ec1a-7a7e-ab6f-f497aa52abe4'),
-        new OA\Property(property: 'account_id', description: 'Cuenta destino (se abona)', type: 'string', format: 'uuid', example: '019fd715-ec22-700c-8cba-ea026d0fd9a9'),
+        new OA\Property(property: 'origin_account_id', description: 'Cuenta del pagador Ana (se debita)', type: 'string', format: 'uuid', example: '019fd715-ec1a-7a7e-ab6f-f497aa52abe4'),
+        new OA\Property(property: 'account_id', description: 'Cuenta destino Pedro (se abona)', type: 'string', format: 'uuid', example: '019fd715-ec22-700c-8cba-ea026d0fd9a9'),
         new OA\Property(property: 'payment_method_id', type: 'string', format: 'uuid', example: '019fd715-ec43-784b-97dd-9b2fe70bfe69'),
         new OA\Property(property: 'amount', type: 'integer', example: 25000),
         new OA\Property(property: 'currency', type: 'string', enum: ['COP', 'USD', 'EUR', 'MXN'], example: 'COP'),

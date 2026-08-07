@@ -172,6 +172,10 @@ final class EloquentPayInRepository implements PayInRepository
      */
     private function applyCriteria(Builder $query, PayInSearchCriteria $criteria): void
     {
+        if ($criteria->clientId instanceof \PayIn\Domain\Client\ClientId) {
+            $query->where('client_id', $criteria->clientId->toString());
+        }
+
         if ($criteria->status instanceof \PayIn\Domain\PayIn\PayInStatus) {
             $query->where('status', $criteria->status->value);
         }
