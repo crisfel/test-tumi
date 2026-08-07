@@ -2,7 +2,7 @@
     "openapi": "3.0.0",
     "info": {
         "title": "PayIn Platform",
-        "description": "API del componente **PayIn**: procesamiento de ingresos de fondos (transferencias entre cuentas de la plataforma).\n\n## 🧪 Prueba en 5 pasos (Ana → Pedro)\n\nLos datos de la demo ya están sembrados y los ejemplos de esta documentación usan los mismos IDs, así que **\"Try it out\" funciona sin editar nada**.\n\n1. **POST /v1/payins** → \"Try it out\" → pega este JSON → \"Execute\":\n```json\n{\n  \"client_id\": \"019fd715-ebf8-7223-ada8-b3c168a28e22\",\n  \"origin_account_id\": \"019fd715-ec1a-7a7e-ab6f-f497aa52abe4\",\n  \"account_id\": \"019fd715-ec22-700c-8cba-ea026d0fd9a9\",\n  \"payment_method_id\": \"019fd715-ec43-784b-97dd-9b2fe70bfe69\",\n  \"amount\": 25000,\n  \"currency\": \"COP\",\n  \"reference\": \"order-2026-0001\"\n}\n```\n2. Respuesta **201** con `\"status\": \"processed\"` y un `\"id\"`.\n3. **¿Bajó el de Ana?** `GET /v1/accounts/019fd715-ec1a-7a7e-ab6f-f497aa52abe4` → `\"balance\": 75000`.\n4. **¿Subió el de Pedro?** `GET /v1/accounts/019fd715-ec22-700c-8cba-ea026d0fd9a9` → `\"balance\": 25000`.\n5. **Historial y estados:** `GET /v1/payins?client_id={id_ana}` y `GET /v1/payins?status=processed|failed`.\n\n**Estados del PayIn:** `CREATED → VALIDATED → PROCESSING → PROCESSED/FAILED` (síncrono: solo queda el estado final). Para ver un `FAILED`, configura `PAYIN_FAKEPAY_BEHAVIOR=rejected` en `.env`, reinicia el contenedor y crea otro PayIn con la tarjeta.\n\n> Detalle: los IDs de los clientes/cuentas/métodos están fijos y aparecen en la guía visual de esta página.",
+        "description": "API del componente **PayIn**: procesamiento de ingresos de fondos (transferencias entre cuentas de la plataforma).\n\n**IDs de prueba** (ya sembrados, cópialos y úsalos con \"Try it out\"):\n\n| Rol | Campo | ID |\n|---|---|---|\n| Usuario que envía dinero (cliente) | `client_id` | `019fd715-ebf8-7223-ada8-b3c168a28e22` |\n| Usuario que envía dinero (cuenta origen, se debita) | `origin_account_id` | `019fd715-ec1a-7a7e-ab6f-f497aa52abe4` |\n| Usuario que recibe (cuenta destino, se acredita) | `account_id` | `019fd715-ec22-700c-8cba-ea026d0fd9a9` |\n| Método de pago: tarjeta | `payment_method_id` | `019fd715-ec43-784b-97dd-9b2fe70bfe69` |\n\nEjemplo: `POST /v1/payins` con `amount: 25000`, `currency: \"COP\"` → respuesta `201` con `status: \"processed\"`. El saldo del que envía baja y el del que recibe sube (consulta `GET /v1/accounts/{id}`).\n\nEstados del PayIn: `CREATED → VALIDATED → PROCESSING → PROCESSED/FAILED`. Para ver un `FAILED`, configura `PAYIN_FAKEPAY_BEHAVIOR=rejected` en `.env` y crea otro PayIn con la tarjeta.",
         "version": "1.0.0"
     },
     "servers": [
@@ -430,7 +430,7 @@
                     {
                         "name": "client_id",
                         "in": "query",
-                        "description": "UUID del cliente: devuelve su HISTORIAL de transacciones (ej.: Ana)",
+                        "description": "UUID del cliente: devuelve su HISTORIAL de transacciones (el que envía dinero)",
                         "required": false,
                         "schema": {
                             "type": "string",
@@ -1373,13 +1373,13 @@
                         "example": "019fd715-ebf8-7223-ada8-b3c168a28e22"
                     },
                     "origin_account_id": {
-                        "description": "Cuenta del pagador Ana (se debita)",
+                        "description": "Cuenta del usuario que envía (se debita)",
                         "type": "string",
                         "format": "uuid",
                         "example": "019fd715-ec1a-7a7e-ab6f-f497aa52abe4"
                     },
                     "account_id": {
-                        "description": "Cuenta destino Pedro (se abona)",
+                        "description": "Cuenta del usuario que recibe (se abona)",
                         "type": "string",
                         "format": "uuid",
                         "example": "019fd715-ec22-700c-8cba-ea026d0fd9a9"
@@ -1712,25 +1712,25 @@
                 ],
                 "properties": {
                     "client_id": {
-                        "description": "UUID del cliente que paga (Ana García) — su cuenta de origen se debita",
+                        "description": "UUID del cliente que envía dinero — su cuenta de origen se debita",
                         "type": "string",
                         "format": "uuid",
                         "example": "019fd715-ebf8-7223-ada8-b3c168a28e22"
                     },
                     "origin_account_id": {
-                        "description": "UUID de la cuenta de ORIGEN de Ana (COP, saldo 100.000): se DEBITA el monto",
+                        "description": "UUID de la cuenta de ORIGEN del que envía (COP, saldo 100.000): se DEBITA el monto",
                         "type": "string",
                         "format": "uuid",
                         "example": "019fd715-ec1a-7a7e-ab6f-f497aa52abe4"
                     },
                     "account_id": {
-                        "description": "UUID de la cuenta DESTINO de Pedro (COP, saldo 0): se ACREDITA el monto",
+                        "description": "UUID de la cuenta DESTINO del que recibe (COP, saldo 0): se ACREDITA el monto",
                         "type": "string",
                         "format": "uuid",
                         "example": "019fd715-ec22-700c-8cba-ea026d0fd9a9"
                     },
                     "payment_method_id": {
-                        "description": "UUID del método de pago (tarjeta Visa de FakePay)",
+                        "description": "UUID del método de pago (tarjeta de FakePay)",
                         "type": "string",
                         "format": "uuid",
                         "example": "019fd715-ec43-784b-97dd-9b2fe70bfe69"

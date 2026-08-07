@@ -189,7 +189,9 @@ flowchart LR
   "currency": "COP",
   "reference": "order-2026-0001"
 }</code></pre>
-    <p>Despu&eacute;s de ejecutarlo: <code>GET /v1/accounts/{id_origen}</code> &rarr; <code>balance: 75000</code> y <code>GET /v1/accounts/{id_destino}</code> &rarr; <code>balance: 25000</code>.</p>
+    <p>Despu&eacute;s de la transferencia, <b>consulta las dos cuentas</b>:
+        <b>primero</b> la del que env&iacute;a (se debit&oacute;) &rarr; <code>GET /v1/accounts/019fd715-ec1a-7a7e-ab6f-f497aa52abe4</code> &rarr; <code>balance: 75000</code>;
+        <b>despu&eacute;s</b> la del que recibe (se acredit&oacute;) &rarr; <code>GET /v1/accounts/019fd715-ec22-700c-8cba-ea026d0fd9a9</code> &rarr; <code>balance: 25000</code>.</p>
 </div>
 
 <div id="swagger-ui"></div>

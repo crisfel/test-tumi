@@ -36,7 +36,7 @@ API del componente **PayIn**: procesamiento de ingresos de fondos (transferencia
 | Usuario que recibe (cuenta destino, se acredita) | `account_id` | `019fd715-ec22-700c-8cba-ea026d0fd9a9` |
 | Método de pago: tarjeta | `payment_method_id` | `019fd715-ec43-784b-97dd-9b2fe70bfe69` |
 
-Ejemplo: `POST /v1/payins` con `amount: 25000`, `currency: "COP"` → respuesta `201` con `status: "processed"`. El saldo del que envía baja y el del que recibe sube (consulta `GET /v1/accounts/{id}`).
+Ejemplo: `POST /v1/payins` con `amount: 25000`, `currency: "COP"` → respuesta `201` con `status: "processed"`. Después consulta ambas cuentas: primero la del que envía (debitada) → `balance: 75000`, y luego la del que recibe (acreditada) → `balance: 25000`.
 
 Estados del PayIn: `CREATED → VALIDATED → PROCESSING → PROCESSED/FAILED`. Para ver un `FAILED`, configura `PAYIN_FAKEPAY_BEHAVIOR=rejected` en `.env` y crea otro PayIn con la tarjeta.
 DESC,

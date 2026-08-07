@@ -43,8 +43,7 @@ Copy-Item .env.example .env
 docker compose run --rm php php artisan key:generate
 
 # 4. Instala dependencias
-#    (en Windows la extracción de paquetes es lenta: desactiva el timeout)
-docker compose run --rm -e COMPOSER_PROCESS_TIMEOUT=0 php composer install --no-interaction
+docker compose run --rm php composer install --no-interaction
 
 # 5. Crea la base de datos y siembra los datos de demo
 docker compose run --rm php php artisan migrate:fresh --seed
@@ -97,9 +96,10 @@ En Swagger, abre **`POST /api/v1/payins`** → clic en **"Try it out"** → pega
 **Qué debe pasar (y cómo comprobarlo):**
 
 1. La respuesta es `201 Created` con `"status": "processed"` y un `"id"`.
-2. **El saldo del que envía baja:** `GET /api/v1/accounts/019fd715-ec1a-7a7e-ab6f-f497aa52abe4` → `"balance": 75000`.
-3. **El saldo del que recibe sube:** `GET /api/v1/accounts/019fd715-ec22-700c-8cba-ea026d0fd9a9` → `"balance": 25000`.
-4. En el extracto de cada cuenta ves el débito/crédito: `GET /api/v1/accounts/{id}/movements`.
+2. **Consulta las dos cuentas para confirmar la transferencia:**
+   - **Primero la cuenta del que envía (se debitó):** `GET /api/v1/accounts/019fd715-ec1a-7a7e-ab6f-f497aa52abe4` → `"balance": 75000` (le quedaron $75.000 de los $100.000).
+   - **Después la cuenta del que recibe (se acreditó):** `GET /api/v1/accounts/019fd715-ec22-700c-8cba-ea026d0fd9a9` → `"balance": 25000` (le llegaron los $25.000).
+3. En el extracto de cada cuenta ves el débito/crédito: `GET /api/v1/accounts/{id}/movements`.
 
 > Es como dar un billete: al que envía se le descuentan $25.000 y al que recibe se le acreditan $25.000, y la plataforma deja constancia de todo (transacción + movimientos del libro mayor).
 
@@ -115,9 +115,9 @@ Cada caso te dice **qué petición hacer** y **qué respuesta esperar**. Montos 
 
 - **Endpoint:** `POST /api/v1/payins` (body: el JSON de la sección 1, `amount: 25000`).
 - **Respuesta:** `201 Created`, `"status": "processed"`, `"provider_transaction_id": "FP-..."`, `"error_code": null`.
-- **Verifica:**
-  - Usuario que envía: `GET /api/v1/accounts/019fd715-ec1a-7a7e-ab6f-f497aa52abe4` → `"balance": 75000` (bajó).
-  - Usuario que recibe: `GET /api/v1/accounts/019fd715-ec22-700c-8cba-ea026d0fd9a9` → `"balance": 25000` (subió).
+- **Verifica consultando AMBAS cuentas:**
+  - **Primero la del que envía (se debitó):** `GET /api/v1/accounts/019fd715-ec1a-7a7e-ab6f-f497aa52abe4` → `"balance": 75000` (le quedaron $75.000).
+  - **Después la del que recibe (se acreditó):** `GET /api/v1/accounts/019fd715-ec22-700c-8cba-ea026d0fd9a9` → `"balance": 25000` (le llegaron $25.000).
 
 ### UC-2 — Saldo insuficiente (`422`)
 
@@ -468,8 +468,7 @@ cp .env.example .env
 docker compose run --rm php php artisan key:generate
 
 # 4. Instalar dependencias (PHP 8.3 dentro del contenedor)
-#    En Windows, la extracción de paquetes es lenta:
-docker compose run --rm -e COMPOSER_PROCESS_TIMEOUT=0 php composer install --no-interaction
+docker compose run --rm php composer install --no-interaction
 
 # 5. Migrar y sembrar
 docker compose run --rm php php artisan migrate --seed
