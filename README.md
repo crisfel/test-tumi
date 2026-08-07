@@ -40,20 +40,25 @@ docker compose up -d
 Copy-Item .env.example .env
 
 # 3. Genera la clave de la aplicación
-docker compose run --rm php php artisan key:generate
+docker compose run --rm -u www-data php php artisan key:generate
 
 # 4. Instala dependencias
 docker compose run --rm php composer install --no-interaction
 
 # 5. Crea la base de datos y siembra los datos de demo
-docker compose run --rm php php artisan migrate:fresh --seed
+docker compose run --rm -u www-data php php artisan migrate:fresh --seed
 
 # 6. Genera la documentación Swagger
-docker compose run --rm php php artisan l5-swagger:generate
+docker compose run --rm -u www-data php php artisan l5-swagger:generate
 
 # 7. ¡Listo! Abre la documentación interactiva:
 #    http://localhost:8080/api/documentation
 ```
+
+> **¿Error `storage/logs/laravel.log ... Permission denied`?** (típico en Docker Desktop/Windows): los comandos `artisan` se ejecutan como `root` por defecto y dejan `storage/` a nombre de root, pero php-fpm (la API) corre como `www-data` y no puede escribirlos. Por eso los pasos usan `-u www-data`. Si ya lo padeciste, fíjalo una sola vez con:
+> ```bash
+> docker compose run --rm php sh -c "chown -R www-data:www-data storage bootstrap/cache"
+> ```
 
 ### Los datos que ya existen en la base (cópialos tal cual)
 
@@ -465,19 +470,24 @@ docker compose up -d
 cp .env.example .env
 
 # 3. Generar la clave de la aplicación
-docker compose run --rm php php artisan key:generate
+docker compose run --rm -u www-data php php artisan key:generate
 
 # 4. Instalar dependencias (PHP 8.3 dentro del contenedor)
 docker compose run --rm php composer install --no-interaction
 
 # 5. Migrar y sembrar
-docker compose run --rm php php artisan migrate --seed
+docker compose run --rm -u www-data php php artisan migrate --seed
 
 # 6. Generar la documentación Swagger
-docker compose run --rm php php artisan l5-swagger:generate
+docker compose run --rm -u www-data php php artisan l5-swagger:generate
 
 # 7. ¡Listo! API en http://localhost:8080/api/v1/payins
 ```
+
+> **¿Error `storage/logs/laravel.log ... Permission denied`?** (típico en Docker Desktop/Windows): los comandos `artisan` se ejecutan como `root` por defecto y dejan `storage/` a nombre de root, pero php-fpm (la API) corre como `www-data` y no puede escribirlos. Por eso los pasos usan `-u www-data`. Si ya lo padeciste, fíjalo una sola vez con:
+> ```bash
+> docker compose run --rm php sh -c "chown -R www-data:www-data storage bootstrap/cache"
+> ```
 
 **Datos de demostración sembrados** (`DatabaseSeeder` → `PaymentProviderSeeder` + `PaymentMethodSeeder` + `DemoSeeder`):
 
