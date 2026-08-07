@@ -37,13 +37,21 @@ return new class () extends Migration {
                 ->onDelete('set null');
 
             $table->index(['account_id', 'occurred_at']);
-            $table->check('amount >= 0');
-            $table->check('balance_after >= 0');
         });
+
+        if (Schema::getConnection()->getDriverName() === 'mysql') {
+            Schema::getConnection()->statement('ALTER TABLE account_movements ADD CONSTRAINT account_movements_amount_check CHECK (amount >= 0)');
+            Schema::getConnection()->statement('ALTER TABLE account_movements ADD CONSTRAINT account_movements_balance_after_check CHECK (balance_after >= 0)');
+        }
     }
 
     public function down(): void
     {
+        if (Schema::getConnection()->getDriverName() === 'mysql') {
+            Schema::getConnection()->statement('ALTER TABLE account_movements DROP CHECK account_movements_amount_check');
+            Schema::getConnection()->statement('ALTER TABLE account_movements DROP CHECK account_movements_balance_after_check');
+        }
+
         Schema::dropIfExists('account_movements');
 
         Schema::table('pay_ins', function (Blueprint $table): void {
