@@ -60,14 +60,11 @@
         "qa": [
             "@lint",
             "@analyse",
-            "@rector:check",
             "@test"
         ],
         "lint": "pint --test",
         "lint:fix": "pint",
         "analyse": "phpstan analyse --memory-limit=1G",
-        "rector": "rector process",
-        "rector:check": "rector process --dry-run",
         "test": "phpunit"
     },
     "extra": {

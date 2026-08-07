@@ -291,7 +291,7 @@ Cada patrón resuelve un problema real; no se incluyeron por demostración:
 │   ├── Repositories/PayIn/          # Persistencia (SQLite :memory:)
 │   ├── Feature/PayIn/               # API end-to-end
 │   └── Support/                     # PayInFixtures
-├── pint.json · phpstan.neon · rector.php · .editorconfig
+├── pint.json · phpstan.neon · .editorconfig
 ```
 
 ## 8. Modelo del dominio
@@ -498,7 +498,6 @@ docker compose run --rm php vendor/bin/phpunit tests/Feature/PayIn
 # Calidad
 docker compose run --rm php vendor/bin/pint --test     # estilo PSR-12
 docker compose run --rm php vendor/bin/phpstan analyse # análisis estático nivel 9
-docker compose run --rm php vendor/bin/rector process --dry-run  # refactorings
 ```
 
 **Cobertura:** Unit (dominio/aplicación/adapters), Repositories (round-trip sobre SQLite en memoria) y Feature (API end-to-end sobre SQLite). La suite también debe ejecutarse contra MySQL (paridad real con producción).
@@ -509,12 +508,11 @@ docker compose run --rm php vendor/bin/rector process --dry-run  # refactorings
 |---|---|---|
 | **Laravel Pint** | Estilo de código (PSR-12) | `pint --test` en revisión; `pint` para auto-corregir. Config en `pint.json` (imports ordenados, array corto, sin imports sin uso) |
 | **PHPStan + Larastan** | Análisis estático **nivel máximo (9)** | `phpstan analyse` sobre `src/` y `routes/`. Detecta tipos `mixed` inseguros, genéricos de Eloquent mal tipados y uso de `new static()` sin contrato |
-| **Rector** | Refactorización automática a PHP 8.3 | `rector process --dry-run` en revisión; `rector process` para aplicar (ej.: clases `readonly`) |
 | **PHPUnit 11 + Mockery** | Pruebas unitarias/feature/repositorios | 203 tests, 472 aserciones; Mockery para puertos (repositorios, clock, event bus, gateways) |
 | **Cobertura por capas** | Verificación del alcance | Unit (dominio: VOs, máquina de estados, validador; aplicación: orquestador con mocks; adapters), Repositories (round-trip con SQLite en memoria), Feature (API end-to-end) |
 | **Fixtures compartidos** | Tests deterministas | `PayInFixtures` centraliza aggregates; UUIDs tipados y reloj inyectable |
 
-**Método de trabajo:** TDD en cada capa (rojo → verde → refactor), verificación local completa antes de cada entrega (`phpunit` + `pint --test` + `phpstan` + `rector --dry-run`) y revisión por pares con la documentación de arquitectura como contrato.
+**Método de trabajo:** TDD en cada capa (rojo → verde → refactor), verificación local completa antes de cada entrega (`phpunit` + `pint --test` + `phpstan`) y revisión por pares con la documentación de arquitectura como contrato.
 
 ## 12. Cómo agregar un nuevo proveedor
 
