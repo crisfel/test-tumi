@@ -55,9 +55,9 @@ docker compose run --rm -u www-data php php artisan l5-swagger:generate
 #    http://localhost:8080/api/documentation
 ```
 
-> **¿Error `storage/logs/laravel.log ... Permission denied`?** (típico en Docker Desktop/Windows): los comandos `artisan` se ejecutan como `root` por defecto y dejan `storage/` a nombre de root, pero php-fpm (la API) corre como `www-data` y no puede escribirlos. Por eso los pasos usan `-u www-data`. Si ya lo padeciste, fíjalo una sola vez con:
+> **¿Error `storage/logs/laravel.log ... Permission denied`?** (típico en Docker Desktop/Windows): los comandos `artisan` corren como `root` y dejan `storage/` a nombre de root, mientras php-fpm (la API) corre como `www-data`. La plataforma ya crea los logs con permisos `0666` (`config/logging.php`) para que no vuelva a pasar. Si ya tienes un log creado por root, bórralo una vez y libera los directorios:
 > ```bash
-> docker compose run --rm php sh -c "chown -R www-data:www-data storage bootstrap/cache"
+> docker compose run --rm php sh -c "rm -f storage/logs/laravel.log && chmod -R 777 storage bootstrap/cache"
 > ```
 
 ### Los datos que ya existen en la base (cópialos tal cual)
@@ -484,9 +484,9 @@ docker compose run --rm -u www-data php php artisan l5-swagger:generate
 # 7. ¡Listo! API en http://localhost:8080/api/v1/payins
 ```
 
-> **¿Error `storage/logs/laravel.log ... Permission denied`?** (típico en Docker Desktop/Windows): los comandos `artisan` se ejecutan como `root` por defecto y dejan `storage/` a nombre de root, pero php-fpm (la API) corre como `www-data` y no puede escribirlos. Por eso los pasos usan `-u www-data`. Si ya lo padeciste, fíjalo una sola vez con:
+> **¿Error `storage/logs/laravel.log ... Permission denied`?** (típico en Docker Desktop/Windows): los comandos `artisan` corren como `root` y dejan `storage/` a nombre de root, mientras php-fpm (la API) corre como `www-data`. La plataforma ya crea los logs con permisos `0666` (`config/logging.php`) para que no vuelva a pasar. Si ya tienes un log creado por root, bórralo una vez y libera los directorios:
 > ```bash
-> docker compose run --rm php sh -c "chown -R www-data:www-data storage bootstrap/cache"
+> docker compose run --rm php sh -c "rm -f storage/logs/laravel.log && chmod -R 777 storage bootstrap/cache"
 > ```
 
 **Datos de demostración sembrados** (`DatabaseSeeder` → `PaymentProviderSeeder` + `PaymentMethodSeeder` + `DemoSeeder`):

@@ -62,6 +62,9 @@ return [
             'driver' => 'single',
             'path' => storage_path('logs/laravel.log'),
             'level' => env('LOG_LEVEL', 'debug'),
+            // 0666: el log se crea escribible por cualquier usuario del contenedor.
+            // Evita "Permission denied" en Docker Desktop/Windows (root vs www-data).
+            'permission' => 0666,
             'replace_placeholders' => true,
         ],
 
@@ -70,6 +73,7 @@ return [
             'path' => storage_path('logs/laravel.log'),
             'level' => env('LOG_LEVEL', 'debug'),
             'days' => env('LOG_DAILY_DAYS', 14),
+            'permission' => 0666,
             'replace_placeholders' => true,
         ],
 
@@ -109,6 +113,7 @@ return [
             'driver' => 'single',
             'path' => storage_path('logs/payin.log'),
             'level' => env('LOG_LEVEL', 'debug'),
+            'permission' => 0666,
             'replace_placeholders' => true,
             // Logs estructurados (JSON) en producción, líneas legibles en desarrollo/pruebas.
             'formatter' => env('APP_ENV', 'local') === 'production'
