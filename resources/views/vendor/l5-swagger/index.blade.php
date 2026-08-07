@@ -25,7 +25,7 @@
       background: #fafafa;
     }
 
-    /* ---------- Panel de guía rápida (demo) ---------- */
+    /* ---------- Panel de datos de prueba (demo) ---------- */
     .guide-panel {
       max-width: 1460px;
       margin: 16px auto;
@@ -46,18 +46,7 @@
     .guide-panel code { background: #f0f2f5; border: 1px solid #e0e3e8; border-radius: 4px; padding: 1px 5px; font-size: 12.5px; font-family: SFMono-Regular, Consolas, monospace; word-break: break-all; }
     .guide-panel pre { background: #0d1b2a; color: #dbe9ff; border-radius: 8px; padding: 14px 16px; overflow-x: auto; font-size: 13px; }
     .guide-panel pre code { background: transparent; border: 0; color: #dbe9ff; }
-    .guide-panel ol, .guide-panel ul { margin: 8px 0; padding-left: 22px; }
-    .guide-panel li { margin: 6px 0; }
-    .guide-panel .steps b { color: #0b5cad; }
-    .guide-panel .flow { text-align: center; margin: 10px 0; }
-    .guide-panel .flow pre { display: inline-block; text-align: left; }
-    .guide-panel .state-pill { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
-    .state-pill.created { background: #e3f2fd; color: #0b5cad; }
-    .state-pill.validated { background: #fff3cd; color: #856404; }
-    .state-pill.processing { background: #fce4ec; color: #ad1457; }
-    .state-pill.processed { background: #d4edda; color: #155724; }
-    .state-pill.failed { background: #f8d7da; color: #721c24; }
-    .guide-panel .tip { border-left: 4px solid #ffb300; background: #fff8e1; padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 12px 0; font-size: 13.5px; }
+    .guide-panel .mermaid { display: flex; justify-content: center; margin: 14px 0 6px; }
     #dark-mode .guide-panel {
       background: #272727;
       border-color: #444;
@@ -68,7 +57,6 @@
     #dark-mode .guide-panel th { background: #343434; color: #e7e7e7; }
     #dark-mode .guide-panel th, #dark-mode .guide-panel td { border-color: #444; }
     #dark-mode .guide-panel code { background: #343434; border-color: #4a4a4a; color: #e7e7e7; }
-    #dark-mode .guide-panel .tip { background: #3d3626; border-color: #ffb300; color: #e7e7e7; }
     @media (max-width: 768px) { .guide-panel { margin: 8px; padding: 14px; } }
     </style>
     @if(config('l5-swagger.defaults.ui.display.dark_mode'))
@@ -165,40 +153,34 @@
 <body @if(config('l5-swagger.defaults.ui.display.dark_mode')) id="dark-mode" @endif>
 
 <div class="guide-panel">
-    <h2>&#129514; Guía rápida: transfiere dinero de Ana a Pedro</h2>
-    <p class="subtitle">Sigue los pasos en orden. <b>No necesitas escribir nada</b>: todos los IDs ya están sembrados en la base de datos y los ejemplos de esta documentación los usan tal cual.</p>
+    <h2>&#129514; Datos de prueba</h2>
+    <p class="subtitle">IDs ya sembrados en la base de datos. P&eacute;galos tal cual en <b>POST /v1/payins</b> con el bot&oacute;n <b>"Try it out"</b>.</p>
 
-    <h3>1&deg; Quién es quién (datos de la demo)</h3>
+    <div class="mermaid">
+flowchart LR
+    E["&#128100; Usuario que env&iacute;a dinero&lt;br&gt;cuenta ORIGEN COP (saldo $100.000)"] -->|"d&eacute;bito &minus;$25.000"| P["POST /v1/payins&lt;br&gt;amount 25.000 COP"]
+    P -->|"cr&eacute;dito +$25.000"| R["&#128100; Usuario que recibe&lt;br&gt;cuenta DESTINO COP (saldo $0)"]
+    </div>
+
+    <h3>Qui&eacute;n es qui&eacute;n</h3>
     <table>
         <thead>
-        <tr><th>Personaje</th><th>Qué es</th><th>ID (cópialo)</th></tr>
+        <tr><th>Rol</th><th>Campo del JSON</th><th>ID (c&oacute;pialo)</th></tr>
         </thead>
         <tbody>
-        <tr><td><b>Ana García</b></td><td>Cliente que <b>paga</b> (de su cuenta sale el dinero)</td><td><code>019fd715-ebf8-7223-ada8-b3c168a28e22</code></td></tr>
-        <tr><td>Cuenta COP de Ana</td><td>Cuenta <b>ORIGEN</b> &mdash; saldo <b>$100.000</b> (se <b>debita</b>)</td><td><code>019fd715-ec1a-7a7e-ab6f-f497aa52abe4</code></td></tr>
-        <tr><td><b>Pedro Pérez</b></td><td>Cliente que <b>recibe</b> (a su cuenta llega el dinero)</td><td><code>019fd715-ed01-7000-8000-000000000001</code></td></tr>
-        <tr><td>Cuenta COP de Pedro</td><td>Cuenta <b>DESTINO</b> &mdash; saldo <b>$0</b> (se <b>acredita</b>)</td><td><code>019fd715-ec22-700c-8cba-ea026d0fd9a9</code></td></tr>
-        <tr><td>Tarjeta Visa (FakePay)</td><td>Método de pago</td><td><code>019fd715-ec43-784b-97dd-9b2fe70bfe69</code></td></tr>
-        <tr><td>Efectivo (<code>cash</code>)</td><td>Método de pago con éxito inmediato</td><td><code>019fd715-ec52-7000-8000-000000000003</code></td></tr>
+        <tr><td><b>Usuario que env&iacute;a dinero</b> (cliente)</td><td><code>client_id</code></td><td><code>019fd715-ebf8-7223-ada8-b3c168a28e22</code></td></tr>
+        <tr><td><b>Usuario que env&iacute;a dinero</b> (cuenta origen, se debita)</td><td><code>origin_account_id</code></td><td><code>019fd715-ec1a-7a7e-ab6f-f497aa52abe4</code></td></tr>
+        <tr><td><b>Usuario que recibe</b> (cliente)</td><td>&mdash;</td><td><code>019fd715-ed01-7000-8000-000000000001</code></td></tr>
+        <tr><td><b>Usuario que recibe</b> (cuenta destino, se acredita)</td><td><code>account_id</code></td><td><code>019fd715-ec22-700c-8cba-ea026d0fd9a9</code></td></tr>
+        <tr><td>M&eacute;todo de pago: tarjeta (FakePay)</td><td><code>payment_method_id</code></td><td><code>019fd715-ec43-784b-97dd-9b2fe70bfe69</code></td></tr>
+        <tr><td>M&eacute;todo de pago: PSE (SandboxPay)</td><td><code>payment_method_id</code></td><td><code>019fd715-ec50-7000-8000-000000000001</code></td></tr>
+        <tr><td>M&eacute;todo de pago: Wallet (SandboxPay)</td><td><code>payment_method_id</code></td><td><code>019fd715-ec51-7000-8000-000000000002</code></td></tr>
+        <tr><td>M&eacute;todo de pago: Efectivo (<code>cash</code>)</td><td><code>payment_method_id</code></td><td><code>019fd715-ec52-7000-8000-000000000003</code></td></tr>
         </tbody>
     </table>
 
-    <h3>2&deg; Cómo fluye el dinero</h3>
-    <div class="flow">
-<pre>
-Ana (paga)                     PayIn &mdash; POST /api/v1/payins                  Pedro (recibe)
-&#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;        &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;        &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;
-&#9474; Cuenta COP de Ana   &#9474;  -25000  &#9474;   amount: 25000   &#9474;  +25000  &#9474; Cuenta COP de Pedro &#9474;
-&#9474; saldo 100.000        &#9474; &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472; &#9474;   currency: COP    &#9474; &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472; &#9474; saldo 0             &#9474;
-&#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9498;        &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9498;        &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9498;
-</pre>
-    </div>
-
-    <h3>3&deg; Paso a paso (en Swagger, botón "Try it out")</h3>
-    <ol class="steps">
-        <li>Abre la operación <b>POST /api/v1/payins</b> y haz clic en <b>"Try it out"</b>.</li>
-        <li>Pega este JSON y haz clic en <b>"Execute"</b>:
-<pre><code>{
+    <h3>Ejemplo de transferencia</h3>
+    <pre><code>{
   "client_id": "019fd715-ebf8-7223-ada8-b3c168a28e22",
   "origin_account_id": "019fd715-ec1a-7a7e-ab6f-f497aa52abe4",
   "account_id": "019fd715-ec22-700c-8cba-ea026d0fd9a9",
@@ -206,32 +188,8 @@ Ana (paga)                     PayIn &mdash; POST /api/v1/payins                
   "amount": 25000,
   "currency": "COP",
   "reference": "order-2026-0001"
-}</code></pre></li>
-        <li>Mira la respuesta: c&oacute;digo <b>201</b>, <code>"status": "processed"</code> y el <code>"id"</code> del PayIn. &#9989;</li>
-        <li><b>&iquest;Baj&oacute; el dinero de Ana?</b> Abre <code>GET /api/v1/accounts/{id_cuenta_ana}</code> &rarr; <code>"balance": 75000</code> (antes $100.000).</li>
-        <li><b>&iquest;Subi&oacute; el de Pedro?</b> Abre <code>GET /api/v1/accounts/{id_cuenta_pedro}</code> &rarr; <code>"balance": 25000</code> (antes $0).</li>
-        <li><b>Mira el extracto de cada cuenta:</b> <code>GET /api/v1/accounts/{id}/movements</code> &rarr; ver&aacute;s un movimiento <code>"type": "debit"</code> en Ana y uno <code>"type": "credit"</code> en Pedro, cada uno con su <code>balance_after</code> y su <code>pay_in_id</code>.</li>
-        <li><b>Consulta la transacci&oacute;n:</b> copia el <code>"id"</code> del paso 3 en <code>GET /api/v1/payins/{id}</code>.</li>
-        <li><b>Historial y estados:</b> <code>GET /api/v1/payins?client_id={id_ana}</code> (historial de Ana) y <code>GET /api/v1/payins?status=processed</code>.</li>
-    </ol>
-
-    <h3>4&deg; Los estados del PayIn</h3>
-    <p>
-        Cada PayIn recorre <span class="state-pill created">CREATED</span> &rarr;
-        <span class="state-pill validated">VALIDATED</span> &rarr;
-        <span class="state-pill processing">PROCESSING</span> &rarr;
-        <span class="state-pill processed">PROCESSED</span> (o <span class="state-pill failed">FAILED</span>).
-        Como la API es <b>s&iacute;ncrona</b>, esos pasos son instant&aacute;neos y solo queda persistido el estado final.
-    </p>
-    <ul>
-        <li><code>GET /api/v1/payins?status=processed</code> &rarr; los exitosos (paso 2).</li>
-        <li><b>&iquest;Quieres ver un <span class="state-pill failed">FAILED</span>?</b> Pon <code>PAYIN_FAKEPAY_BEHAVIOR=rejected</code> en tu <code>.env</code>, reinicia el contenedor (<code>docker compose restart php</code>) y crea otro PayIn con la tarjeta Visa &rarr; la respuesta ser&aacute; <code>201</code> con <code>"status": "failed"</code> y <code>"error_code": "PROVIDER_REJECTED"</code>. Los saldos <b>no</b> cambian.</li>
-        <li>Luego lo ves con <code>GET /api/v1/payins?status=failed</code>.</li>
-    </ul>
-
-    <div class="tip">
-        <b>Ojo con la referencia:</b> si ejecutas el mismo <code>reference</code> dos veces, la segunda devuelve <code>409 REFERENCE_ALREADY_USED</code>. Es la protecci&oacute;n contra dobles cobros (idempotencia).
-    </div>
+}</code></pre>
+    <p>Despu&eacute;s de ejecutarlo: <code>GET /v1/accounts/{id_origen}</code> &rarr; <code>balance: 75000</code> y <code>GET /v1/accounts/{id_destino}</code> &rarr; <code>balance: 25000</code>.</p>
 </div>
 
 <div id="swagger-ui"></div>
@@ -285,6 +243,16 @@ Ana (paga)                     PayIn &mdash; POST /api/v1/payins                
             usePkceWithAuthorizationCodeGrant: "{!! (bool)config('l5-swagger.defaults.ui.authorization.oauth2.use_pkce_with_authorization_code_grant') !!}"
         })
         @endif
+    }
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>
+    if (window.mermaid) {
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: {{ config('l5-swagger.defaults.ui.display.dark_mode') ? "'dark'" : "'default'" }}
+        });
     }
 </script>
 </body>

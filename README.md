@@ -36,14 +36,23 @@ Componente **PayIn** para plataformas financieras: procesamiento transaccional d
 # 1. Levanta el stack (php-fpm, nginx, mysql, redis)
 docker compose up -d
 
-# 2. Instala dependencias y siembra la base de datos con los datos de demo
-docker compose run --rm php composer install
+# 2. Crea el archivo .env a partir del ejemplo (¡necesario para arrancar!)
+Copy-Item .env.example .env
+
+# 3. Genera la clave de la aplicación
+docker compose run --rm php php artisan key:generate
+
+# 4. Instala dependencias
+#    (en Windows la extracción de paquetes es lenta: desactiva el timeout)
+docker compose run --rm -e COMPOSER_PROCESS_TIMEOUT=0 php composer install --no-interaction
+
+# 5. Crea la base de datos y siembra los datos de demo
 docker compose run --rm php php artisan migrate:fresh --seed
 
-# 3. Genera la documentación Swagger
+# 6. Genera la documentación Swagger
 docker compose run --rm php php artisan l5-swagger:generate
 
-# 4. ¡Listo! Abre la documentación interactiva:
+# 7. ¡Listo! Abre la documentación interactiva:
 #    http://localhost:8080/api/documentation
 ```
 
@@ -51,18 +60,25 @@ docker compose run --rm php php artisan l5-swagger:generate
 
 Los **IDs son fijos** y coinciden con los ejemplos de Swagger, así que puedes usar **"Try it out" sin editar nada**:
 
-| Qué es | Quién | ID (cópialo) |
+| Rol | Campo del JSON | ID (cópialo) |
 |---|---|---|
-| Cliente que **paga / envía** | **Ana García** | `019fd715-ebf8-7223-ada8-b3c168a28e22` |
-| Cuenta **ORIGEN** de Ana (COP, saldo $100.000) — *se debita* | Ana | `019fd715-ec1a-7a7e-ab6f-f497aa52abe4` |
-| Cliente que **recibe** | **Pedro Pérez** | `019fd715-ed01-7000-8000-000000000001` |
-| Cuenta **DESTINO** de Pedro (COP, saldo $0) — *se acredita* | Pedro | `019fd715-ec22-700c-8cba-ea026d0fd9a9` |
-| Método de pago: **tarjeta Visa** (proveedor FakePay) | — | `019fd715-ec43-784b-97dd-9b2fe70bfe69` |
-| Método de pago: **PSE** (proveedor SandboxPay) | — | `019fd715-ec50-7000-8000-000000000001` |
-| Método de pago: **Wallet** (proveedor SandboxPay) | — | `019fd715-ec51-7000-8000-000000000002` |
-| Método de pago: **Efectivo / cash** (éxito inmediato) | — | `019fd715-ec52-7000-8000-000000000003` |
+| **Usuario que envía dinero** (cliente) | `client_id` | `019fd715-ebf8-7223-ada8-b3c168a28e22` |
+| **Usuario que envía dinero** (cuenta ORIGEN, se debita) | `origin_account_id` | `019fd715-ec1a-7a7e-ab6f-f497aa52abe4` |
+| **Usuario que recibe** (cuenta DESTINO, se acredita) | `account_id` | `019fd715-ec22-700c-8cba-ea026d0fd9a9` |
+| Método de pago: **tarjeta** (proveedor FakePay) | `payment_method_id` | `019fd715-ec43-784b-97dd-9b2fe70bfe69` |
+| Método de pago: **PSE** (proveedor SandboxPay) | `payment_method_id` | `019fd715-ec50-7000-8000-000000000001` |
+| Método de pago: **Wallet** (proveedor SandboxPay) | `payment_method_id` | `019fd715-ec51-7000-8000-000000000002` |
+| Método de pago: **Efectivo / `cash`** (éxito inmediato) | `payment_method_id` | `019fd715-ec52-7000-8000-000000000003` |
 
-### El JSON mágico: transferir dinero de Ana a Pedro
+### Cómo fluye el dinero
+
+```mermaid
+flowchart LR
+    E["👤 Usuario que envía<br/>cuenta ORIGEN COP (saldo $100.000)"] -->|"débito −$25.000"| P["POST /v1/payins<br/>amount 25.000 COP"]
+    P -->|"crédito +$25.000"| R["👤 Usuario que recibe<br/>cuenta DESTINO COP (saldo $0)"]
+```
+
+### El JSON para transferir dinero
 
 En Swagger, abre **`POST /api/v1/payins`** → clic en **"Try it out"** → pega esto → **"Execute"**:
 
@@ -81,13 +97,13 @@ En Swagger, abre **`POST /api/v1/payins`** → clic en **"Try it out"** → pega
 **Qué debe pasar (y cómo comprobarlo):**
 
 1. La respuesta es `201 Created` con `"status": "processed"` y un `"id"`.
-2. **El saldo de Ana baja:** `GET /api/v1/accounts/019fd715-ec1a-7a7e-ab6f-f497aa52abe4` → `"balance": 75000`.
-3. **El saldo de Pedro sube:** `GET /api/v1/accounts/019fd715-ec22-700c-8cba-ea026d0fd9a9` → `"balance": 25000`.
+2. **El saldo del que envía baja:** `GET /api/v1/accounts/019fd715-ec1a-7a7e-ab6f-f497aa52abe4` → `"balance": 75000`.
+3. **El saldo del que recibe sube:** `GET /api/v1/accounts/019fd715-ec22-700c-8cba-ea026d0fd9a9` → `"balance": 25000`.
 4. En el extracto de cada cuenta ves el débito/crédito: `GET /api/v1/accounts/{id}/movements`.
 
-> Es como dar un billete: Ana pierde $25.000 y Pedro gana $25.000, y la plataforma deja constancia de todo (transacción + movimientos del libro mayor).
+> Es como dar un billete: al que envía se le descuentan $25.000 y al que recibe se le acreditan $25.000, y la plataforma deja constancia de todo (transacción + movimientos del libro mayor).
 
-Todos los escenarios de prueba están en la siguiente sección, y el mismo guion está disponible dentro de Swagger en la cabecera de la página.
+Todos los escenarios de prueba están en la siguiente sección, y los mismos IDs de prueba están dentro de Swagger en la cabecera de la página.
 
 ---
 
@@ -95,17 +111,17 @@ Todos los escenarios de prueba están en la siguiente sección, y el mismo guion
 
 Cada caso te dice **qué petición hacer** y **qué respuesta esperar**. Montos en **unidades menores** (cents): `25000` COP = `$250,00`.
 
-### UC-1 — Transferencia exitosa Ana → Pedro (`processed`)
+### UC-1 — Transferencia exitosa (usuario que envía → usuario que recibe) (`processed`)
 
-- **Endpoint:** `POST /api/v1/payins` (body: el JSON mágico de arriba, `amount: 25000`).
+- **Endpoint:** `POST /api/v1/payins` (body: el JSON de la sección 1, `amount: 25000`).
 - **Respuesta:** `201 Created`, `"status": "processed"`, `"provider_transaction_id": "FP-..."`, `"error_code": null`.
 - **Verifica:**
-  - Ana: `GET /api/v1/accounts/019fd715-ec1a-7a7e-ab6f-f497aa52abe4` → `"balance": 75000` (bajó).
-  - Pedro: `GET /api/v1/accounts/019fd715-ec22-700c-8cba-ea026d0fd9a9` → `"balance": 25000` (subió).
+  - Usuario que envía: `GET /api/v1/accounts/019fd715-ec1a-7a7e-ab6f-f497aa52abe4` → `"balance": 75000` (bajó).
+  - Usuario que recibe: `GET /api/v1/accounts/019fd715-ec22-700c-8cba-ea026d0fd9a9` → `"balance": 25000` (subió).
 
 ### UC-2 — Saldo insuficiente (`422`)
 
-- **Endpoint:** `POST /api/v1/payins` con `"amount": 999999999` (más de lo que tiene Ana).
+- **Endpoint:** `POST /api/v1/payins` con `"amount": 999999999` (más de lo que tiene el que envía).
 - **Respuesta:** `422 Unprocessable Entity`, `"errors[0].code": "INSUFFICIENT_FUNDS"`.
 - **Verifica:** ninguna cuenta cambia de saldo.
 
@@ -134,8 +150,8 @@ Cada caso te dice **qué petición hacer** y **qué respuesta esperar**. Montos 
 
 ### UC-7 — Historial de transacciones de un cliente
 
-- **Endpoint:** `GET /api/v1/payins?client_id=019fd715-ebf8-7223-ada8-b3c168a28e22` → historial de **Ana** (todos sus PayIns, del más reciente al más antiguo).
-- Prueba con el id de Pedro (`019fd715-ed01-7000-8000-000000000001`) → devuelve sus operaciones como pagador (vacío en la demo porque Pedro solo recibe).
+- **Endpoint:** `GET /api/v1/payins?client_id=019fd715-ebf8-7223-ada8-b3c168a28e22` → historial del **usuario que envía** (todos sus PayIns, del más reciente al más antiguo).
+- Prueba con el id del que recibe (`019fd715-ed01-7000-8000-000000000001`) → devuelve sus operaciones como pagador (vacío en la demo porque solo recibe).
 - Para ver lo que **recibió** una cuenta (aunque el pagador sea otro), usa el extracto del **UC-6**.
 - Combinable con estados: `?client_id={id}&status=processed`.
 
@@ -153,36 +169,41 @@ El PayIn recorre los estados `CREATED → VALIDATED → PROCESSING → PROCESSED
 
 **Arquitectura Hexagonal (Ports & Adapters)** con cuatro capas en `src/PayIn/` y namespace PSR-4 propio:
 
-```
-┌────────────────────────────────────────────────────────────────────┐
-│                         INFRASTRUCTURE                              │
-│  HTTP (Controllers · FormRequests · Resources · Middleware)         │
-│  Persistencia Eloquent (Models · Mappers · Repositories)            │
-│  Adapters de proveedores (FakePay · SandboxPay · Registry)          │
-│  Servicios (Clock · TransactionManager · EventBus · Logger)         │
-└──────────────┬──────────────────────────────┬──────────────────────┘
-               │ implementa                    │ implementa
-               ▼                               ▼
-┌───────────────────────────┐   ┌──────────────────────────────┐
-│      APPLICATION           │   │       PORTS (contratos)      │
-│  Commands · DTOs · Result  │──►│  PaymentGateway · Registry  │
-│  Orquestador · Queries     │   │  Clock · EventBus · Logger  │
-│  Casos de uso              │   │  TransactionManager         │
-└──────────────┬─────────────┘   └──────────────────────────────┘
-               │ depende de
-               ▼
-┌───────────────────────────┐   ┌──────────────────────────────┐
-│         DOMAIN             │   │       CONTRACTS              │
-│  Aggregates · Entities     │──►│  ClientRepository ·         │
-│  Value Objects · Events    │   │  AccountRepository ·        │
-│  State Machine · Validator │   │  PaymentMethodRepository ·  │
-│  Factories                 │   │  PaymentProviderRepository· │
-└──────────────┬─────────────┘   │  PayInRepository            │
-               │                 └──────────────────────────────┘
-               ▼
-        ┌─────────────┐
-        │   SHARED     │  Uuid · TypedId · ValueObject · Result · DomainException
-        └─────────────┘
+```mermaid
+flowchart TD
+    subgraph INFRA["INFRASTRUCTURE"]
+        HTTP["HTTP: Controllers · FormRequests · Resources · Middleware"]
+        PERS["Persistencia Eloquent: Models · Mappers · Repositories"]
+        ADPT["Adapters de proveedores: FakePay · SandboxPay · Registry"]
+        SERV["Servicios: Clock · TransactionManager · EventBus · Logger"]
+    end
+
+    subgraph APP["APPLICATION"]
+        USECASE["Commands · DTOs · Result · Orquestador · Casos de uso"]
+    end
+
+    subgraph PORTS["PORTS (contratos)"]
+        P1["PaymentGateway · Registry · Clock · EventBus · Logger · TransactionManager"]
+    end
+
+    subgraph DOM["DOMAIN"]
+        D1["Aggregates · Entities · Value Objects · Events · State Machine · Validator · Factories"]
+    end
+
+    subgraph CONT["CONTRACTS"]
+        C1["ClientRepository · AccountRepository · PaymentMethodRepository · PaymentProviderRepository · PayInRepository"]
+    end
+
+    SHARED["SHARED: Uuid · TypedId · ValueObject · Result · DomainException"]
+
+    HTTP --> USECASE
+    PERS --> USECASE
+    ADPT --> USECASE
+    SERV --> USECASE
+    USECASE --> D1
+    APP --> PORTS
+    D1 --> C1
+    D1 --> SHARED
 ```
 
 **Reglas de dependencia (una sola dirección):**
@@ -308,20 +329,16 @@ Cada patrón resuelve un problema real; no se incluyeron por demostración:
 
 **Máquina de estados (Patrón State):**
 
-```
-            ┌────────┐
-            │CREATED │──┐
-            └───┬────┘  │
-        ┌──────┤       │
-        │      │        │
-        ▼      ▼        ▼
-   VALIDATED  FAILED    │
-        │               │
-        ▼               │
-   PROCESSING ──────► FAILED
-        │
-        ├──────► PROCESSED (terminal)
-        └──────► FAILED   (terminal)
+```mermaid
+stateDiagram-v2
+    [*] --> CREATED
+    CREATED --> VALIDATED
+    CREATED --> FAILED
+    VALIDATED --> PROCESSING
+    PROCESSING --> PROCESSED
+    PROCESSING --> FAILED
+    PROCESSED --> [*]
+    FAILED --> [*]
 ```
 
 Cada estado declara sus transiciones permitidas en `PayInStatus::transitions()`; cualquier transición inválida lanza `InvalidStateTransitionException` (409 en la API).
@@ -443,35 +460,43 @@ Cada estado declara sus transiciones permitidas en `PayInStatus::transitions()`;
 # 1. Levantar el stack (php-fpm, nginx, mysql:8, redis)
 docker compose up -d
 
-# 2. Instalar dependencias (PHP 8.3 dentro del contenedor)
-docker compose run --rm php composer install
+# 2. Crear el .env a partir del ejemplo (¡necesario! sin él la app usa defaults
+#    de sqlite y APP_ENV=production). En Windows: Copy-Item .env.example .env
+cp .env.example .env
 
-# 3. Migrar y sembrar
+# 3. Generar la clave de la aplicación
+docker compose run --rm php php artisan key:generate
+
+# 4. Instalar dependencias (PHP 8.3 dentro del contenedor)
+#    En Windows, la extracción de paquetes es lenta:
+docker compose run --rm -e COMPOSER_PROCESS_TIMEOUT=0 php composer install --no-interaction
+
+# 5. Migrar y sembrar
 docker compose run --rm php php artisan migrate --seed
 
-# 4. Generar la documentación Swagger
+# 6. Generar la documentación Swagger
 docker compose run --rm php php artisan l5-swagger:generate
 
-# 5. ¡Listo! API en http://localhost:8080/api/v1/payins
+# 7. ¡Listo! API en http://localhost:8080/api/v1/payins
 ```
 
 **Datos de demostración sembrados** (`DatabaseSeeder` → `PaymentProviderSeeder` + `PaymentMethodSeeder` + `DemoSeeder`):
 
-Los IDs son **fijos y estables** para que puedas copiarlos desde Swagger o este README. Escenario base: **Ana envía dinero a Pedro**.
+Los IDs son **fijos y estables** para que puedas copiarlos desde Swagger o este README. Escenario base: **el usuario que envía transfiere dinero al usuario que recibe**.
 
-| Entidad | Dato | ID |
+| Rol / Entidad | Dato | ID |
 |---|---|---|
-| Cliente | **Ana García** (paga/envía) — `ana.garcia@example.com` | `019fd715-ebf8-7223-ada8-b3c168a28e22` |
-| Cuenta | Ana COP — saldo **$100.000** (ORIGEN, se debita) | `019fd715-ec1a-7a7e-ab6f-f497aa52abe4` |
-| Cuenta | Ana USD — saldo $0 | `019fd715-ec2a-7000-8000-00000000000a` |
-| Cliente | **Pedro Pérez** (recibe) — `pedro.perez@example.com` | `019fd715-ed01-7000-8000-000000000001` |
-| Cuenta | Pedro COP — saldo **$0** (DESTINO, se acredita) | `019fd715-ec22-700c-8cba-ea026d0fd9a9` |
-| Método | Tarjeta Visa — FakePay (`card`) | `019fd715-ec43-784b-97dd-9b2fe70bfe69` |
-| Método | PSE — SandboxPay (`pse`) | `019fd715-ec50-7000-8000-000000000001` |
-| Método | Wallet — SandboxPay (`wallet`) | `019fd715-ec51-7000-8000-000000000002` |
-| Método | Efectivo — `cash` (`cash`, éxito inmediato) | `019fd715-ec52-7000-8000-000000000003` |
+| Usuario que envía (cliente) | paga/envía — `ana.garcia@example.com` | `019fd715-ebf8-7223-ada8-b3c168a28e22` |
+| Cuenta ORIGEN (se debita) | COP — saldo **$100.000** | `019fd715-ec1a-7a7e-ab6f-f497aa52abe4` |
+| Cuenta (USD) | COP complementaria — saldo $0 | `019fd715-ec2a-7000-8000-00000000000a` |
+| Usuario que recibe (cliente) | recibe — `pedro.perez@example.com` | `019fd715-ed01-7000-8000-000000000001` |
+| Cuenta DESTINO (se acredita) | COP — saldo **$0** | `019fd715-ec22-700c-8cba-ea026d0fd9a9` |
+| Método de pago | Tarjeta — FakePay (`card`) | `019fd715-ec43-784b-97dd-9b2fe70bfe69` |
+| Método de pago | PSE — SandboxPay (`pse`) | `019fd715-ec50-7000-8000-000000000001` |
+| Método de pago | Wallet — SandboxPay (`wallet`) | `019fd715-ec51-7000-8000-000000000002` |
+| Método de pago | Efectivo — `cash` (éxito inmediato) | `019fd715-ec52-7000-8000-000000000003` |
 
-> Prueba guiada: consulta la sección **[1. Cómo probar en 5 minutos](#1-cómo-probar-en-5-minutos)** y los **[2. Casos de uso](#2-casos-de-uso)**. La misma guía está dentro de Swagger en `http://localhost:8080/api/documentation`.
+> Prueba guiada: consulta la sección **[1. Cómo probar en 5 minutos](#1-cómo-probar-en-5-minutos)** y los **[2. Casos de uso](#2-casos-de-uso)**. Los mismos IDs de prueba están dentro de Swagger en `http://localhost:8080/api/documentation`.
 
 > **Scripts SQL de referencia:** `database/sql/schema.sql` (DDL completo MySQL del modelo normalizado) y `database/sql/seed.sql` (catálogo + datos demo) están disponibles como entregable del modelo de datos. Las migraciones Laravel son la fuente de verdad en ejecución; los scripts permiten crear la base desde SQL puro: `mysql -u root -p payin < database/sql/schema.sql && mysql -u root -p payin < database/sql/seed.sql`.
 
